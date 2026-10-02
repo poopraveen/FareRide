@@ -211,26 +211,12 @@ The API owns payment state. A payment counts as paid only after the server confi
 ```ts
 interface PaymentProvider {
   readonly name: string;
-  createIntent(
-    input: CreateIntentInput,
-    idempotencyKey: string,
-  ): Promise<ProviderIntent>;
-  capture(
-    ref: ProviderRef,
-    amount: Money,
-    idempotencyKey: string,
-  ): Promise<ProviderResult>;
+  createIntent(input: CreateIntentInput, idempotencyKey: string): Promise<ProviderIntent>;
+  capture(ref: ProviderRef, amount: Money, idempotencyKey: string): Promise<ProviderResult>;
   cancel(ref: ProviderRef): Promise<ProviderResult>;
-  refund(
-    ref: ProviderRef,
-    amount: Money,
-    idempotencyKey: string,
-  ): Promise<ProviderRefund>;
+  refund(ref: ProviderRef, amount: Money, idempotencyKey: string): Promise<ProviderRefund>;
   retrieve(ref: ProviderRef): Promise<ProviderIntent>;
-  verifyWebhook(
-    rawBody: Buffer,
-    headers: Record<string, string>,
-  ): ProviderEvent; // throws on a bad signature
+  verifyWebhook(rawBody: Buffer, headers: Record<string, string>): ProviderEvent; // throws on a bad signature
 }
 ```
 
