@@ -6,7 +6,8 @@
   "exports": {
     "./base": "./base.js",
     "./nest": "./nest.js",
-    "./next": "./next.js"
+    "./next": "./next.js",
+    "./react": "./react.js"
   },
   "peerDependencies": {
     "eslint": "^9.0.0 || ^10.0.0",

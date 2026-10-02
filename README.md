@@ -2,19 +2,20 @@
 
 FareRide is a multi-service mobility and delivery platform: ride-hailing first, then food and parcel delivery, with digital payments and real-time tracking. It has an original brand and design, and it is built as a production engineering project.
 
-> **Status:** Phase 2 (monorepo foundation). The API serves `/health` and `/ready` (MongoDB and Redis); the web apps are skeletons. Features start in Phase 3.
+> **Status:** Phase 3 (design system). The API serves `/health` and `/ready` (MongoDB and Redis); the web apps share the `packages/ui` components, previewed at `/design-system` in the customer app. Features start in Phase 4.
 
 ## Documentation
 
-| Document                                     | What it covers                                                           |
-| -------------------------------------------- | ------------------------------------------------------------------------ |
-| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Product scope, MVP, user roles, non-functional requirements, assumptions |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, modules, real-time, payments, deployment, phases          |
-| [docs/DATABASE.md](docs/DATABASE.md)         | Entities, ER diagram, constraints, indexes, cache keys                   |
-| [docs/API.md](docs/API.md)                   | REST conventions, error format, endpoint contract, socket events         |
-| [docs/SECURITY.md](docs/SECURITY.md)         | Threat model, authentication, authorization, controls                    |
-| [CONTRIBUTING.md](CONTRIBUTING.md)           | Workflow, commit conventions, quality gates                              |
-| [docs/adr/](docs/adr/)                       | Architecture Decision Records                                            |
+| Document                                       | What it covers                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------ |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)   | Product scope, MVP, user roles, non-functional requirements, assumptions |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)   | System design, modules, real-time, payments, deployment, phases          |
+| [docs/DATABASE.md](docs/DATABASE.md)           | Entities, ER diagram, constraints, indexes, cache keys                   |
+| [docs/API.md](docs/API.md)                     | REST conventions, error format, endpoint contract, socket events         |
+| [docs/SECURITY.md](docs/SECURITY.md)           | Threat model, authentication, authorization, controls                    |
+| [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) | Tokens, themes, components and accessibility checks                      |
+| [CONTRIBUTING.md](CONTRIBUTING.md)             | Workflow, commit conventions, quality gates                              |
+| [docs/adr/](docs/adr/)                         | Architecture Decision Records                                            |
 
 ## Getting started
 
@@ -50,7 +51,7 @@ To use your Atlas cluster instead of the local container, put its `mongodb+srv:/
 
 ## Stack
 
-- **Web:** Next.js (App Router), React, TypeScript, Tailwind CSS; shadcn/ui, TanStack Query, Zustand, React Hook Form + Zod and MapLibre GL arrive with their phases
+- **Web:** Next.js (App Router), React, TypeScript, Tailwind CSS, Radix primitives in shadcn style; TanStack Query, Zustand, React Hook Form + Zod and MapLibre GL arrive with their phases
 - **API:** NestJS on Fastify, MongoDB with Mongoose, Redis, OpenAPI; Socket.IO and BullMQ arrive with their phases
 - **Tooling:** Turborepo, pnpm, ESLint, Prettier, Vitest, Husky, commitlint, GitHub Actions, Docker
 
@@ -65,12 +66,13 @@ apps/
 packages/
   config/         Validated environment schemas and regional defaults
   types/          API envelope, error codes and shared contracts
+  ui/             Design system: tokens, themes and accessible components
   tsconfig/       Shared TypeScript configs
   eslint-config/  Shared ESLint flat configs
 docs/             Architecture, API, database, security, ADRs
 ```
 
-Packages for the design system (`ui`), domain rules (`domain`), validation and the API client are added in the phases that first need them.
+Packages for domain rules (`domain`), validation and the API client are added in the phases that first need them.
 
 ## License
 
