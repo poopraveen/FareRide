@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment files: only the example is committed
+.env
+.env.*
+!.env.example
+
+# Generated
+apps/api/src/generated/
+
+# OS and editors
+.DS_Store
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json

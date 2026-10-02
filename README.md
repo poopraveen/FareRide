@@ -2,7 +2,7 @@
 
 FareRide is a multi-service mobility and delivery platform: ride-hailing first, then food and parcel delivery, with digital payments and real-time tracking. It has an original brand and design, and it is built as a production engineering project.
 
-> **Status:** Phase 1 (architecture and requirements). There is no application code yet. Phase 2 sets up the monorepo.
+> **Status:** Phase 2 (monorepo foundation). The API serves `/health` and `/ready`; the web apps are skeletons. Features start in Phase 3.
 
 ## Documentation
 
@@ -13,22 +13,63 @@ FareRide is a multi-service mobility and delivery platform: ride-hailing first, 
 | [docs/DATABASE.md](docs/DATABASE.md)         | Entities, ER diagram, constraints, indexes, cache keys                   |
 | [docs/API.md](docs/API.md)                   | REST conventions, error format, endpoint contract, socket events         |
 | [docs/SECURITY.md](docs/SECURITY.md)         | Threat model, authentication, authorization, controls                    |
+| [CONTRIBUTING.md](CONTRIBUTING.md)           | Workflow, commit conventions, quality gates                              |
 | [docs/adr/](docs/adr/)                       | Architecture Decision Records                                            |
 
-## Planned stack
+## Getting started
 
-- **Web:** Next.js (App Router), React, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query, Zustand, React Hook Form + Zod, MapLibre GL, PWA
-- **API:** NestJS on Fastify, MongoDB (Mongoose), Redis, Socket.IO, BullMQ, OpenAPI
-- **Tooling:** Turborepo, pnpm, ESLint, Prettier, Vitest, Playwright, Husky, GitHub Actions, Docker
+Requirements: Node.js 22 (see `.nvmrc`), pnpm 10 (`corepack enable`), Docker.
 
-## Repository layout (from Phase 2)
+```bash
+pnpm install
+cp .env.example .env          # local defaults; every variable is documented there
+pnpm db:up                    # PostgreSQL + PostGIS and Redis via Docker Compose
+pnpm --filter @fareride/api db:deploy   # apply database migrations
+pnpm dev                      # all apps in watch mode
+```
+
+| App          | URL                                                                |
+| ------------ | ------------------------------------------------------------------ |
+| API          | http://localhost:4000 (`/health`, `/ready`, Swagger UI at `/docs`) |
+| Customer web | http://localhost:3000                                              |
+| Driver web   | http://localhost:3001                                              |
+| Admin web    | http://localhost:3002                                              |
+
+## Scripts
+
+| Command                       | What it does                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `pnpm dev`                    | Run every app in watch mode                                                        |
+| `pnpm build`                  | Build all packages and apps (Turborepo, cached)                                    |
+| `pnpm lint`                   | ESLint with type-aware rules                                                       |
+| `pnpm typecheck`              | TypeScript in strict mode, no emit                                                 |
+| `pnpm test`                   | Unit and integration tests (integration tests need `DATABASE_URL` and `REDIS_URL`) |
+| `pnpm format`                 | Prettier                                                                           |
+| `pnpm db:up` / `pnpm db:down` | Start or stop local PostgreSQL and Redis                                           |
+
+## Stack
+
+- **Web:** Next.js (App Router), React, TypeScript, Tailwind CSS; shadcn/ui, TanStack Query, Zustand, React Hook Form + Zod and MapLibre GL arrive with their phases
+- **API:** NestJS on Fastify, Prisma with PostgreSQL + PostGIS, Redis, OpenAPI; Socket.IO and BullMQ arrive with their phases
+- **Tooling:** Turborepo, pnpm, ESLint, Prettier, Vitest, Husky, commitlint, GitHub Actions, Docker
+
+## Repository layout
 
 ```text
-apps/       customer-web, driver-web, admin-web, restaurant-web (later), api, worker
-packages/   ui, domain, validation, types, api-client, config, testing, eslint-config, tsconfig
-infrastructure/  docker, nginx, deployment
-docs/       architecture, API, database, security, ADRs
+apps/
+  api/            NestJS API (REST, later Socket.IO)
+  customer-web/   Next.js PWA for customers
+  driver-web/     Next.js PWA for drivers and delivery partners
+  admin-web/      Next.js operations console
+packages/
+  config/         Validated environment schemas and regional defaults
+  types/          API envelope, error codes and shared contracts
+  tsconfig/       Shared TypeScript configs
+  eslint-config/  Shared ESLint flat configs
+docs/             Architecture, API, database, security, ADRs
 ```
+
+Packages for the design system (`ui`), domain rules (`domain`), validation and the API client are added in the phases that first need them.
 
 ## License
 
