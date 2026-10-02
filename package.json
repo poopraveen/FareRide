@@ -14,7 +14,7 @@
     "test": "turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:up": "docker compose up -d postgres redis",
+    "db:up": "docker compose up -d --wait mongodb redis",
     "db:down": "docker compose down",
     "prepare": "husky"
   },

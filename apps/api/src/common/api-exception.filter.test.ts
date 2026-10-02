@@ -56,7 +56,10 @@ describe('ApiExceptionFilter', () => {
   it('hides the message and stack of unexpected errors', () => {
     const { host, status, send } = hostFor('req-3');
 
-    filter.catch(new Error('connection string postgres://user:secret@db leaked'), host);
+    filter.catch(
+      new Error('connection string mongodb+srv://app:secret@cluster0.example.net leaked'),
+      host,
+    );
 
     expect(status).toHaveBeenCalledWith(500);
     const body = JSON.stringify(send.mock.calls[0]);

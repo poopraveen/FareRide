@@ -13,11 +13,11 @@ const healthy = (): FakeDependency => ({ ping: vi.fn(() => Promise.resolve()) })
 
 describe('HTTP foundation (fake dependencies)', () => {
   let app: NestFastifyApplication;
-  const prisma = healthy();
+  const mongo = healthy();
   const redis = healthy();
 
   beforeAll(async () => {
-    app = await createTestApp({ fakes: { prisma, redis } });
+    app = await createTestApp({ fakes: { mongo, redis } });
   });
 
   afterAll(async () => {
@@ -41,7 +41,7 @@ describe('HTTP foundation (fake dependencies)', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json<ApiSuccess<ReadinessReport>>().data).toEqual({
       status: 'ready',
-      checks: { postgres: 'up', redis: 'up' },
+      checks: { mongodb: 'up', redis: 'up' },
     });
   });
 
@@ -55,19 +55,19 @@ describe('HTTP foundation (fake dependencies)', () => {
       success: false,
       error: {
         code: 'SERVICE_UNAVAILABLE',
-        details: { checks: { postgres: 'up', redis: 'down' } },
+        details: { checks: { mongodb: 'up', redis: 'down' } },
       },
     });
   });
 
   it('GET /ready treats a hanging dependency as down after the timeout', async () => {
-    vi.mocked(prisma.ping).mockImplementationOnce(() => new Promise(() => undefined));
+    vi.mocked(mongo.ping).mockImplementationOnce(() => new Promise(() => undefined));
 
     const response = await app.inject({ method: 'GET', url: '/ready' });
 
     expect(response.statusCode).toBe(503);
     expect(response.json<ApiFailure>().error.details).toMatchObject({
-      checks: { postgres: 'down' },
+      checks: { mongodb: 'down' },
     });
   });
 

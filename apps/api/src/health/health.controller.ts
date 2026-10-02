@@ -17,7 +17,7 @@ export class HealthController {
   }
 
   @Get('ready')
-  @ApiOperation({ summary: 'Readiness: PostgreSQL and Redis are reachable. 503 otherwise.' })
+  @ApiOperation({ summary: 'Readiness: MongoDB and Redis are reachable. 503 otherwise.' })
   async readiness(): Promise<ReadinessReport> {
     const report = await this.health.readiness();
     if (report.status !== 'ready') {

@@ -2,7 +2,7 @@
 
 FareRide is a multi-service mobility and delivery platform: ride-hailing first, then food and parcel delivery, with digital payments and real-time tracking. It has an original brand and design, and it is built as a production engineering project.
 
-> **Status:** Phase 2 (monorepo foundation). The API serves `/health` and `/ready`; the web apps are skeletons. Features start in Phase 3.
+> **Status:** Phase 2 (monorepo foundation). The API serves `/health` and `/ready` (MongoDB and Redis); the web apps are skeletons. Features start in Phase 3.
 
 ## Documentation
 
@@ -23,10 +23,11 @@ Requirements: Node.js 22 (see `.nvmrc`), pnpm 10 (`corepack enable`), Docker.
 ```bash
 pnpm install
 cp .env.example .env          # local defaults; every variable is documented there
-pnpm db:up                    # PostgreSQL + PostGIS and Redis via Docker Compose
-pnpm --filter @fareride/api db:deploy   # apply database migrations
+pnpm db:up                    # MongoDB (single-node replica set) and Redis via Docker Compose
 pnpm dev                      # all apps in watch mode
 ```
+
+To use your Atlas cluster instead of the local container, put its `mongodb+srv://` string in `MONGODB_URI` in your local `.env`, never in committed files. FareRide always uses the `MONGODB_DB_NAME` database (default `fareride`), so its collections stay separate from other apps on the cluster.
 
 | App          | URL                                                                |
 | ------------ | ------------------------------------------------------------------ |
@@ -37,20 +38,20 @@ pnpm dev                      # all apps in watch mode
 
 ## Scripts
 
-| Command                       | What it does                                                                       |
-| ----------------------------- | ---------------------------------------------------------------------------------- |
-| `pnpm dev`                    | Run every app in watch mode                                                        |
-| `pnpm build`                  | Build all packages and apps (Turborepo, cached)                                    |
-| `pnpm lint`                   | ESLint with type-aware rules                                                       |
-| `pnpm typecheck`              | TypeScript in strict mode, no emit                                                 |
-| `pnpm test`                   | Unit and integration tests (integration tests need `DATABASE_URL` and `REDIS_URL`) |
-| `pnpm format`                 | Prettier                                                                           |
-| `pnpm db:up` / `pnpm db:down` | Start or stop local PostgreSQL and Redis                                           |
+| Command                       | What it does                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `pnpm dev`                    | Run every app in watch mode                                                       |
+| `pnpm build`                  | Build all packages and apps (Turborepo, cached)                                   |
+| `pnpm lint`                   | ESLint with type-aware rules                                                      |
+| `pnpm typecheck`              | TypeScript in strict mode, no emit                                                |
+| `pnpm test`                   | Unit and integration tests (integration tests need `MONGODB_URI` and `REDIS_URL`) |
+| `pnpm format`                 | Prettier                                                                          |
+| `pnpm db:up` / `pnpm db:down` | Start or stop local MongoDB and Redis                                             |
 
 ## Stack
 
 - **Web:** Next.js (App Router), React, TypeScript, Tailwind CSS; shadcn/ui, TanStack Query, Zustand, React Hook Form + Zod and MapLibre GL arrive with their phases
-- **API:** NestJS on Fastify, Prisma with PostgreSQL + PostGIS, Redis, OpenAPI; Socket.IO and BullMQ arrive with their phases
+- **API:** NestJS on Fastify, MongoDB with Mongoose, Redis, OpenAPI; Socket.IO and BullMQ arrive with their phases
 - **Tooling:** Turborepo, pnpm, ESLint, Prettier, Vitest, Husky, commitlint, GitHub Actions, Docker
 
 ## Repository layout

@@ -1,4 +1,4 @@
-export type DependencyName = 'postgres' | 'redis';
+export type DependencyName = 'mongodb' | 'redis';
 
 export type DependencyStatus = 'up' | 'down';
 

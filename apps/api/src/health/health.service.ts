@@ -7,13 +7,13 @@ import {
 } from '@fareride/types';
 
 import { type AppConfig, InjectConfig } from '../config/app-config.js';
-import { PrismaService } from '../database/prisma.service.js';
+import { MongoHealth } from '../database/mongo-health.js';
 import { RedisService } from '../redis/redis.service.js';
 
 @Injectable()
 export class HealthService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly mongo: MongoHealth,
     private readonly redis: RedisService,
     @InjectConfig() private readonly config: AppConfig,
   ) {}
@@ -24,7 +24,7 @@ export class HealthService {
 
   async readiness(): Promise<ReadinessReport> {
     const probes: Record<DependencyName, () => Promise<void>> = {
-      postgres: () => this.prisma.ping(),
+      mongodb: () => this.mongo.ping(),
       redis: () => this.redis.ping(),
     };
 

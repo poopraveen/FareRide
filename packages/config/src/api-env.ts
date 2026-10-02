@@ -20,7 +20,14 @@ export const apiEnvSchema = z
     API_HOST: z.string().default('0.0.0.0'),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-    DATABASE_URL: z.url().refine((url) => url.startsWith('postgres'), 'must be a postgres:// URL'),
+    MONGODB_URI: z
+      .string()
+      .regex(/^mongodb(\+srv)?:\/\//, 'must be a mongodb:// or mongodb+srv:// connection string'),
+    // FareRide always uses its own database, whatever database the URI names (ADR 0009).
+    MONGODB_DB_NAME: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,63}$/, 'must be a plain database name')
+      .default('fareride'),
     REDIS_URL: z.url().refine((url) => url.startsWith('redis'), 'must be a redis:// URL'),
     CORS_ORIGINS: commaSeparatedUrls,
     READINESS_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),

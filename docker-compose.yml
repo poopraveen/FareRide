@@ -2,21 +2,26 @@
 name: fareride
 
 services:
-  postgres:
-    image: postgis/postgis:17-3.5
-    environment:
-      POSTGRES_USER: fareride
-      POSTGRES_PASSWORD: fareride
-      POSTGRES_DB: fareride
+  mongodb:
+    image: mongo:8.0
+    # A single-node replica set: MongoDB transactions require a replica set (ADR 0009).
+    command: ['--replSet', 'rs0', '--bind_ip_all']
     ports:
-      - '5432:5432'
+      - '27017:27017'
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - mongodb-data:/data/db
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U fareride -d fareride']
+      # Initiates the replica set on first start, then reports healthy once it has a primary.
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"
       interval: 5s
-      timeout: 3s
-      retries: 20
+      timeout: 5s
+      retries: 30
+      start_period: 5s
 
   redis:
     image: redis:7.4-alpine
@@ -32,5 +37,5 @@ services:
       retries: 20
 
 volumes:
-  postgres-data:
+  mongodb-data:
   redis-data:

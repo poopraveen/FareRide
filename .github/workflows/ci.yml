@@ -19,16 +19,6 @@ jobs:
     timeout-minutes: 20
 
     services:
-      postgres:
-        image: postgis/postgis:17-3.5
-        env:
-          POSTGRES_USER: fareride
-          POSTGRES_PASSWORD: fareride
-          POSTGRES_DB: fareride
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U fareride -d fareride"
-          --health-interval 5s --health-timeout 3s --health-retries 20
       redis:
         image: redis:7.4-alpine
         ports: ['6379:6379']
@@ -37,7 +27,8 @@ jobs:
           --health-interval 5s --health-timeout 3s --health-retries 20
 
     env:
-      DATABASE_URL: postgresql://fareride:fareride@localhost:5432/fareride
+      MONGODB_URI: mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
+      MONGODB_DB_NAME: fareride_ci
       REDIS_URL: redis://localhost:6379
       TURBO_TELEMETRY_DISABLED: 1
 
@@ -54,6 +45,21 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Service containers cannot take start-up flags, so MongoDB runs as a step:
+      # transactions need a replica set, even a single-node one.
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name mongodb -p 27017:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+          for attempt in $(seq 1 30); do
+            if docker exec mongodb mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }" | grep -q 1; then
+              docker exec mongodb mongosh --quiet --eval "while (!db.hello().isWritablePrimary) { sleep(500) }"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MongoDB replica set did not start" >&2
+          exit 1
+
       - name: Format
         run: pnpm format:check
 
@@ -62,9 +68,6 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
-
-      - name: Apply database migrations
-        run: pnpm --filter @fareride/api db:deploy
 
       - name: Test
         run: pnpm test

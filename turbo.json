@@ -4,30 +4,26 @@
   "globalEnv": ["NODE_ENV"],
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "generate"],
+      "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.test.ts", "!**/*.test.tsx", "!README.md"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "env": ["NEXT_PUBLIC_*"]
     },
     "dev": {
-      "dependsOn": ["^build", "generate"],
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["^build", "generate"]
+      "dependsOn": ["^build"]
     },
     "typecheck": {
-      "dependsOn": ["^build", "generate"]
+      "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build", "generate"],
+      "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
-      "env": ["DATABASE_URL", "REDIS_URL"]
-    },
-    "generate": {
-      "inputs": ["prisma/**"],
-      "outputs": ["src/generated/**"]
+      "env": ["MONGODB_URI", "MONGODB_DB_NAME", "REDIS_URL"]
     }
   }
 }
