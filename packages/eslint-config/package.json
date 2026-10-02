@@ -1,0 +1,26 @@
+{
+  "name": "@fareride/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./base": "./base.js",
+    "./nest": "./nest.js",
+    "./next": "./next.js"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0 || ^10.0.0",
+    "typescript": ">=5.0.0 <6.1.0"
+  },
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^16.3.8",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "typescript-eslint": "^8.71.0"
+  },
+  "devDependencies": {
+    "eslint": "^10",
+    "typescript": "~6.0.3"
+  }
+}
