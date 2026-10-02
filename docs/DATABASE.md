@@ -161,12 +161,12 @@ db.rides.createIndex(
 
 // Guarded transition (the pattern for every state change), inside a transaction with the event insert.
 db.rides.findOneAndUpdate(
-  { _id: rideId, status: "SEARCHING_DRIVER", version: expectedVersion },
+  { _id: rideId, status: 'SEARCHING_DRIVER', version: expectedVersion },
   {
-    $set: { status: "DRIVER_ASSIGNED", driverId, assignedAt: now },
+    $set: { status: 'DRIVER_ASSIGNED', driverId, assignedAt: now },
     $inc: { version: 1 },
   },
-  { returnDocument: "after", session },
+  { returnDocument: 'after', session },
 );
 // null => another actor changed the ride first => 409 conflict
 
@@ -174,7 +174,7 @@ db.rides.findOneAndUpdate(
 db.wallets.updateOne(
   {
     _id: walletId,
-    $expr: { $gte: [{ $add: ["$balanceMinor", "$creditLimitMinor"] }, amount] },
+    $expr: { $gte: [{ $add: ['$balanceMinor', '$creditLimitMinor'] }, amount] },
   },
   { $inc: { balanceMinor: -amount, version: 1 } },
   { session },
