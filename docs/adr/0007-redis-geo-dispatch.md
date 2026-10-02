@@ -13,6 +13,6 @@ Online drivers are kept in a Redis GEO set per city and service type, with a per
 
 ## Consequences
 
-- Fast lookups without loading PostgreSQL with high-frequency writes.
+- Fast lookups without loading MongoDB with high-frequency writes.
 - One-at-a-time offers are simpler and fairer, but slower to match than broadcasting to many drivers; offering to the top few in parallel is a later tuning option.
 - Redis becomes critical for dispatch, so it runs as a managed, persistent instance.

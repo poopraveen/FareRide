@@ -1,8 +1,8 @@
 # Architecture
 
-FareRide is a **modular monolith**: one NestJS API (REST + Socket.IO), one BullMQ worker, and separate Next.js apps per audience, in a Turborepo monorepo on PostgreSQL + PostGIS and Redis. Every boundary that may later need to scale out or be swapped (maps, payments, SMS, storage, the real-time gateway) sits behind an interface from day one. Splitting a module into its own service later is then a deployment change, not a rewrite.
+FareRide is a **modular monolith**: one NestJS API (REST + Socket.IO), one BullMQ worker, and separate Next.js apps per audience, in a Turborepo monorepo on MongoDB and Redis. Every boundary that may later need to scale out or be swapped (maps, payments, SMS, storage, the real-time gateway) sits behind an interface from day one. Splitting a module into its own service later is then a deployment change, not a rewrite.
 
-Decisions with real alternatives are recorded as ADRs in [adr/](adr/).
+Decisions with real alternatives are recorded as ADRs in [adr/](adr/). The database is MongoDB, chosen by the product owner on 2026-10-02 ([ADR 0009](adr/0009-mongodb-primary-database.md)).
 
 ## 1. System context
 
@@ -22,7 +22,7 @@ flowchart TD
         DOM["Domain modules"]
     end
     WK["worker (NestJS + BullMQ)"]
-    PG[("PostgreSQL + PostGIS")]
+    PG[("MongoDB Atlas<br/>database: fareride")]
     RD[("Redis<br/>cache, GEO, queues, pub/sub")]
     OS[("Object storage<br/>S3-compatible")]
     subgraph Providers["Provider adapters"]
@@ -77,7 +77,7 @@ One developer, one database, one deploy, and no distributed transactions. Micros
 
 **Rules:**
 
-1. A module owns its tables. Other modules call its service; they never query its tables directly.
+1. A module owns its collections. Other modules call its service; they never query its collections directly.
 2. Synchronous side effects use the in-process event bus (`@nestjs/event-emitter`). Anything slow, retryable or external goes through BullMQ.
 3. Business rules that the web apps also need (state machines, fare maths, money) live in `packages/domain` as pure TypeScript with no framework imports.
 4. Third parties are reached only through provider interfaces in `apps/api/src/providers`.
@@ -130,7 +130,7 @@ The browser renders with MapLibre GL through a `<Map>` component in `packages/ui
 
 ## 5. Ride lifecycle
 
-The authoritative state machine lives in `packages/domain/rides`. Each transition is one guarded SQL update plus a `RideEvent` insert, in one transaction.
+The authoritative state machine lives in `packages/domain/rides`. Each transition is one guarded conditional update (`findOneAndUpdate` filtered on the current status and version) plus a `rideEvents` insert, in one multi-document transaction.
 
 ```mermaid
 stateDiagram-v2
@@ -200,7 +200,7 @@ sequenceDiagram
 2. Drop drivers whose last-location key has expired, who are not `ONLINE`, or who already hold an offer.
 3. Rank by ETA from `MapProvider.etaMatrix` (straight-line fallback), then rating and acceptance rate.
 4. Offer to one driver at a time with a 15 s TTL, guarded by a Redis lock `offer:{driverId}`. A delayed BullMQ job expires the offer and moves on. The radius widens to 5 km, then 8 km. After about 2 minutes the ride becomes `NO_DRIVER_FOUND`.
-5. Acceptance is a guarded update (`WHERE status = 'SEARCHING_DRIVER'`), so two drivers racing cannot both win.
+5. Acceptance is a guarded update (filtered on `status: 'SEARCHING_DRIVER'` and the ride's `version`), so two drivers racing cannot both win.
 
 All radii, TTLs and timeouts are configuration values, not constants in code.
 
@@ -211,12 +211,26 @@ The API owns payment state. A payment counts as paid only after the server confi
 ```ts
 interface PaymentProvider {
   readonly name: string;
-  createIntent(input: CreateIntentInput, idempotencyKey: string): Promise<ProviderIntent>;
-  capture(ref: ProviderRef, amount: Money, idempotencyKey: string): Promise<ProviderResult>;
+  createIntent(
+    input: CreateIntentInput,
+    idempotencyKey: string,
+  ): Promise<ProviderIntent>;
+  capture(
+    ref: ProviderRef,
+    amount: Money,
+    idempotencyKey: string,
+  ): Promise<ProviderResult>;
   cancel(ref: ProviderRef): Promise<ProviderResult>;
-  refund(ref: ProviderRef, amount: Money, idempotencyKey: string): Promise<ProviderRefund>;
+  refund(
+    ref: ProviderRef,
+    amount: Money,
+    idempotencyKey: string,
+  ): Promise<ProviderRefund>;
   retrieve(ref: ProviderRef): Promise<ProviderIntent>;
-  verifyWebhook(rawBody: Buffer, headers: Record<string, string>): ProviderEvent; // throws on a bad signature
+  verifyWebhook(
+    rawBody: Buffer,
+    headers: Record<string, string>,
+  ): ProviderEvent; // throws on a bad signature
 }
 ```
 
@@ -242,7 +256,7 @@ sequenceDiagram
 - **Idempotency:** client `Idempotency-Key` on create; deterministic keys for capture and refund (`ride:{id}:capture`).
 - **Webhooks:** raw-body signature check, stored in `PaymentEvent` with a unique provider event id, processed by the worker, 200 returned fast.
 - **Reconciliation:** a nightly job re-reads non-final payments from the provider and alerts on drift.
-- **Wallet:** ledger in PostgreSQL; balance changes and ledger rows written in one transaction under a row lock. Top-ups are credited only after the capture webhook.
+- **Wallet:** ledger in MongoDB; the balance change and the ledger entry are written in one multi-document transaction, and the balance update is conditional so it can never go below the allowed limit. Top-ups are credited only after the capture webhook.
 - **Card data** never touches FareRide servers (provider-hosted fields).
 
 Adapters: `fake` (development and E2E tests, with controllable outcomes) and `stripe` first. Providers for the launch market are added as further adapters.
@@ -263,7 +277,7 @@ Adapters: `fake` (development and E2E tests, with controllable outcomes) and `st
 | Idempotency responses                            | `idem:{userId}:{key}`                      | 24 h             | Expiry                                                                    |
 | Token version (logout everywhere)                | `tokver:{userId}`                          | 15 min           | Updated on bump                                                           |
 
-Ride, order, wallet and payment rows are never served from cache.
+Ride, order, wallet and payment documents are never served from cache.
 
 ## 9. Background jobs
 
@@ -287,18 +301,18 @@ flowchart TD
     EDGE --> LB["Load balancer<br/>HTTPS, WebSocket upgrade"]
     LB --> WEB["Web containers, 2 or more"]
     LB --> API["API containers, 2 or more"]
-    API --> PG[("Managed PostgreSQL<br/>PITR backups")]
+    API --> PG[("MongoDB Atlas<br/>replica set, continuous backup")]
     API --> RD[("Managed Redis")]
     WK["Worker containers"] --> PG
     WK --> RD
     API --> OBJ[("Object storage<br/>private bucket")]
 ```
 
-- **Target:** Google Cloud (Cloud Run, Cloud SQL for PostgreSQL, Memorystore for Redis, Cloud Storage) with infrastructure as code. Images are plain OCI containers, so AWS or another platform remains an option.
+- **Target:** Google Cloud (Cloud Run, Memorystore for Redis, Cloud Storage) with MongoDB Atlas, and infrastructure as code. Images are plain OCI containers, so AWS or another platform remains an option.
 - **Environments:** `local` (Docker Compose), `preview` (web apps per pull request), `staging`, `production`. Configuration only through environment variables validated with Zod at boot.
 - **Pipeline:** install → lint → typecheck → unit → integration (Testcontainers) → build → E2E (Playwright against Compose) → image build and scan → push. Merges to `main` deploy to staging; production deploys from a tagged release after manual approval.
-- **Migrations:** `prisma migrate deploy` as a release job before new containers take traffic; expand-then-contract for breaking changes.
-- **Growth path:** read replicas for history and admin queries; split `realtime` into its own service; partition `ride_location` and `ride_event` by month; per-city Redis geo shards.
+- **Schema changes:** indexes are created by a release job (`syncIndexes`) before new containers take traffic; document shape changes are versioned with a `schemaVersion` field and migrated with idempotent scripts, expand-then-contract.
+- **Growth path:** secondary reads for history and admin queries; split `realtime` into its own service; time-series collections and TTL indexes for location breadcrumbs; sharding by city; per-city Redis geo shards.
 
 ## 11. Micro-frontend readiness
 
@@ -306,26 +320,26 @@ Each audience already has its own app and can deploy independently, which delive
 
 ## 12. Development phases
 
-| #   | Phase                                                                                                                                                     | Done when                               |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 1   | Architecture and requirements (this document set)                                                                                                         | Approved                                |
-| 2   | Monorepo setup: Turborepo, pnpm, shared configs, Compose for Postgres and Redis, app skeletons, `/health` and `/ready`, CI (lint, typecheck, test, build) | `pnpm dev` runs all apps; CI green      |
-| 3   | Design system: tokens, themes, components, a11y tests                                                                                                     | Components pass keyboard and axe checks |
-| 4   | Authentication: OTP, passwords, sessions, RBAC, profile, addresses                                                                                        | Integration tests per role              |
-| 5   | Customer app shell, PWA manifest                                                                                                                          | Responsive at all six widths            |
-| 6   | Maps: `MapProvider`, MapLibre, search, routing                                                                                                            | Route and ETA drawn through the adapter |
-| 7   | Ride booking: quotes, state machine, dispatch                                                                                                             | Every transition unit-tested            |
-| 8   | Driver app: onboarding, KYC, vehicles, offers, trip actions, earnings                                                                                     | Driver completes a seeded ride          |
-| 9   | Real-time tracking                                                                                                                                        | E2E: customer sees the driver move      |
-| 10  | Payments, wallet, ratings                                                                                                                                 | E2E: book, complete, pay, rate          |
-| 11  | Food delivery, then parcels                                                                                                                               | E2E food order                          |
-| 12  | Admin                                                                                                                                                     | E2E: admin approves a driver            |
-| 13  | Testing gaps and all critical-flow E2E tests                                                                                                              | Critical flows green in CI              |
-| 14  | Security hardening                                                                                                                                        | ASVS L2 checklist reviewed              |
-| 15  | Performance                                                                                                                                               | Measured Web Vitals recorded            |
-| 16  | Production Docker images                                                                                                                                  | Images build and run in CI              |
-| 17  | CI/CD with deploy stages                                                                                                                                  | Staging deploys on merge                |
-| 18  | Production deployment                                                                                                                                     | Public HTTPS MVP; restore drill done    |
+| #   | Phase                                                                                                                                                    | Done when                               |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 1   | Architecture and requirements (this document set)                                                                                                        | Approved                                |
+| 2   | Monorepo setup: Turborepo, pnpm, shared configs, Compose for MongoDB and Redis, app skeletons, `/health` and `/ready`, CI (lint, typecheck, test, build) | `pnpm dev` runs all apps; CI green      |
+| 3   | Design system: tokens, themes, components, a11y tests                                                                                                    | Components pass keyboard and axe checks |
+| 4   | Authentication: OTP, passwords, sessions, RBAC, profile, addresses                                                                                       | Integration tests per role              |
+| 5   | Customer app shell, PWA manifest                                                                                                                         | Responsive at all six widths            |
+| 6   | Maps: `MapProvider`, MapLibre, search, routing                                                                                                           | Route and ETA drawn through the adapter |
+| 7   | Ride booking: quotes, state machine, dispatch                                                                                                            | Every transition unit-tested            |
+| 8   | Driver app: onboarding, KYC, vehicles, offers, trip actions, earnings                                                                                    | Driver completes a seeded ride          |
+| 9   | Real-time tracking                                                                                                                                       | E2E: customer sees the driver move      |
+| 10  | Payments, wallet, ratings                                                                                                                                | E2E: book, complete, pay, rate          |
+| 11  | Food delivery, then parcels                                                                                                                              | E2E food order                          |
+| 12  | Admin                                                                                                                                                    | E2E: admin approves a driver            |
+| 13  | Testing gaps and all critical-flow E2E tests                                                                                                             | Critical flows green in CI              |
+| 14  | Security hardening                                                                                                                                       | ASVS L2 checklist reviewed              |
+| 15  | Performance                                                                                                                                              | Measured Web Vitals recorded            |
+| 16  | Production Docker images                                                                                                                                 | Images build and run in CI              |
+| 17  | CI/CD with deploy stages                                                                                                                                 | Staging deploys on merge                |
+| 18  | Production deployment                                                                                                                                    | Public HTTPS MVP; restore drill done    |
 
 CI starts in Phase 2 rather than Phase 17, so every later phase is gated by lint, typecheck and tests.
 

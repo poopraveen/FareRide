@@ -63,7 +63,7 @@ Food delivery, parcel delivery, promo codes, support tickets, restaurant managem
 | Accessibility | WCAG 2.2 AA                                                                                                                 |
 | Responsive    | Tested at 360, 390, 768, 1024, 1440 and 1920 px                                                                             |
 | Browsers      | Last 2 versions of Chrome, Safari (iOS and macOS), Firefox, Edge                                                            |
-| Data          | Point-in-time recovery for PostgreSQL; documented restore procedure                                                         |
+| Data          | Continuous backup with point-in-time restore for MongoDB (Atlas); documented restore procedure                              |
 | Observability | Structured logs with request IDs, metrics, traces, error tracking, `/health` and `/ready`                                   |
 
 ## 4. Definition of done (per feature)
@@ -86,13 +86,14 @@ These are in force until changed:
 
 ## 6. Decisions taken (approved 2026-10-02)
 
-| Decision       | Choice                                                                                            |
-| -------------- | ------------------------------------------------------------------------------------------------- |
-| Product name   | FareRide                                                                                          |
-| Repository     | github.com/poopraveen/FareRide                                                                    |
-| Maps           | MapLibre GL for rendering + hosted routing/geocoding behind a `MapProvider` adapter               |
-| Payments       | `PaymentProvider` interface; Stripe adapter first, plus a fake provider for development and tests |
-| SMS / OTP      | `SmsProvider` interface; Twilio Verify adapter, console provider in development                   |
-| Cloud          | Google Cloud (Cloud Run, Cloud SQL, Memorystore); images stay provider-agnostic                   |
-| Auth           | In-house implementation (ADR 0004)                                                                |
-| Launch country | Open; see assumption 1                                                                            |
+| Decision       | Choice                                                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| Product name   | FareRide                                                                                                  |
+| Database       | MongoDB (separate `fareride` database on the owner's Atlas cluster), accessed through Mongoose (ADR 0009) |
+| Repository     | github.com/poopraveen/FareRide                                                                            |
+| Maps           | MapLibre GL for rendering + hosted routing/geocoding behind a `MapProvider` adapter                       |
+| Payments       | `PaymentProvider` interface; Stripe adapter first, plus a fake provider for development and tests         |
+| SMS / OTP      | `SmsProvider` interface; Twilio Verify adapter, console provider in development                           |
+| Cloud          | Google Cloud (Cloud Run, Memorystore) with MongoDB Atlas; images stay provider-agnostic                   |
+| Auth           | In-house implementation (ADR 0004)                                                                        |
+| Launch country | Open; see assumption 1                                                                                    |

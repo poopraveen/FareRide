@@ -48,7 +48,7 @@ Error:
 | Concern     | Convention                                                                                                                                                                                                                                                |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Versioning  | URI prefix `/v1`. Breaking changes go to `/v2`; the old version stays for one release cycle                                                                                                                                                               |
-| IDs         | UUIDv7 strings                                                                                                                                                                                                                                            |
+| IDs         | MongoDB ObjectId strings (24 hex characters)                                                                                                                                                                                                              |
 | Time        | ISO 8601 UTC strings                                                                                                                                                                                                                                      |
 | Money       | `{ "amountMinor": 1250, "currency": "USD" }`                                                                                                                                                                                                              |
 | Pagination  | Cursor: `?cursor=&limit=` (default 20, max 100) for feeds and history. Offset (`?page=&pageSize=`) only for admin tables                                                                                                                                  |
@@ -160,7 +160,7 @@ All paths are prefixed with `/v1`. "Auth" lists who may call it; ownership check
 | Method | Path      | Purpose                                        |
 | ------ | --------- | ---------------------------------------------- |
 | GET    | `/health` | Liveness: process is up (no dependency checks) |
-| GET    | `/ready`  | Readiness: PostgreSQL and Redis reachable      |
+| GET    | `/ready`  | Readiness: MongoDB and Redis reachable         |
 
 Food, parcel, restaurant, support and promotions-admin endpoints follow the same rules and are specified in their phases.
 

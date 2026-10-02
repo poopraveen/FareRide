@@ -14,7 +14,7 @@ sequenceDiagram
     participant A as API
     participant R as Redis
     participant S as SMS via worker
-    participant D as PostgreSQL
+    participant D as MongoDB
     B->>A: POST /v1/auth/otp/request with phone
     A->>R: rate-limit check by phone, IP and device
     A->>R: store HMAC of OTP, 5 min TTL, attempts 0
@@ -53,22 +53,22 @@ sequenceDiagram
 
 ## Threats and controls
 
-| Threat                            | Control                                                                                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Broken access control             | Deny-by-default guards, ownership policies, role matrix tests                                                                         |
-| Credential stuffing and OTP abuse | Rate limits, attempt caps, hashed OTPs, SMS caps, optional CAPTCHA after repeated failures                                            |
-| Token theft                       | HttpOnly cookies, short access tokens, refresh rotation with reuse detection, session list with revoke                                |
-| Price or state tampering          | Signed fare quotes (HMAC, 5 min), server-computed fares and fees, guarded state transitions                                           |
-| Payment fraud                     | Server-side verification via webhooks or provider retrieve, idempotency keys, nightly reconciliation                                  |
-| XSS                               | React escaping, no raw HTML without sanitising, strict nonce-based CSP, Trusted Types where supported                                 |
-| Injection                         | Prisma parameterised queries; raw SQL only via tagged templates; lint rule against string-built SQL                                   |
-| Malicious uploads                 | Presigned uploads to a private bucket, MIME and magic-byte checks, 10 MB cap, malware scan job, short-lived signed download URLs      |
-| Location privacy                  | Exact positions visible only to the matched party during an active trip; the nearby-drivers endpoint returns jittered, ID-less points |
-| Secrets exposure                  | Server-only variables; CI fails if a secret-like value is in a `NEXT_PUBLIC_` variable; browser map keys are domain-restricted        |
-| Transport                         | HTTPS only, HSTS, CORS allow-list of FareRide origins, WSS only                                                                       |
-| Denial of service                 | Edge WAF and limits, per-route API limits, per-socket message limits, body size limits (1 MB)                                         |
-| Insider misuse                    | Append-only audit log for admin actions, refunds, KYC decisions, role changes                                                         |
-| Supply chain                      | Lockfile, Renovate or Dependabot, `pnpm audit` and image scanning in CI, pinned base images                                           |
+| Threat                            | Control                                                                                                                                                                                                                                                                           |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Broken access control             | Deny-by-default guards, ownership policies, role matrix tests                                                                                                                                                                                                                     |
+| Credential stuffing and OTP abuse | Rate limits, attempt caps, hashed OTPs, SMS caps, optional CAPTCHA after repeated failures                                                                                                                                                                                        |
+| Token theft                       | HttpOnly cookies, short access tokens, refresh rotation with reuse detection, session list with revoke                                                                                                                                                                            |
+| Price or state tampering          | Signed fare quotes (HMAC, 5 min), server-computed fares and fees, guarded state transitions                                                                                                                                                                                       |
+| Payment fraud                     | Server-side verification via webhooks or provider retrieve, idempotency keys, nightly reconciliation                                                                                                                                                                              |
+| XSS                               | React escaping, no raw HTML without sanitising, strict nonce-based CSP, Trusted Types where supported                                                                                                                                                                             |
+| Injection                         | NoSQL injection: every input is parsed by Zod into plain typed values before it reaches a query, so a client cannot smuggle operators such as `$ne` or `$where`; Mongoose `sanitizeFilter` and `strictQuery` are on; server-side JavaScript (`$where`, `$function`) is never used |
+| Malicious uploads                 | Presigned uploads to a private bucket, MIME and magic-byte checks, 10 MB cap, malware scan job, short-lived signed download URLs                                                                                                                                                  |
+| Location privacy                  | Exact positions visible only to the matched party during an active trip; the nearby-drivers endpoint returns jittered, ID-less points                                                                                                                                             |
+| Secrets exposure                  | Server-only variables; CI fails if a secret-like value is in a `NEXT_PUBLIC_` variable; browser map keys are domain-restricted                                                                                                                                                    |
+| Transport                         | HTTPS only, HSTS, CORS allow-list of FareRide origins, WSS only                                                                                                                                                                                                                   |
+| Denial of service                 | Edge WAF and limits, per-route API limits, per-socket message limits, body size limits (1 MB)                                                                                                                                                                                     |
+| Insider misuse                    | Append-only audit log for admin actions, refunds, KYC decisions, role changes                                                                                                                                                                                                     |
+| Supply chain                      | Lockfile, Renovate or Dependabot, `pnpm audit` and image scanning in CI, pinned base images                                                                                                                                                                                       |
 
 ## Data protection
 

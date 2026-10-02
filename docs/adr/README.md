@@ -12,5 +12,6 @@ Each record captures one decision with real alternatives: the context, the choic
 | [0006](0006-explicit-state-machines.md)        | Explicit state machines in a shared domain package    | Accepted |
 | [0007](0007-redis-geo-dispatch.md)             | Redis GEO index and single-driver offers for dispatch | Accepted |
 | [0008](0008-country-agnostic-configuration.md) | Country-specific behaviour as configuration           | Accepted |
+| [0009](0009-mongodb-primary-database.md)       | MongoDB as the primary database                       | Accepted |
 
 Template: copy `0001` and keep the headings Context, Decision, Consequences.

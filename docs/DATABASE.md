@@ -1,131 +1,134 @@
 # Database
 
-PostgreSQL 17 with PostGIS, accessed through Prisma. Migrations are Prisma migrations; geo queries use `$queryRaw` tagged templates. This document is the contract the Prisma schema implements from Phase 2 onward.
+FareRide stores its data in **MongoDB**, in a dedicated `fareride` database on the owner's Atlas cluster, accessed through **Mongoose** from the NestJS API. The connection string is read only from the `MONGODB_URI` environment variable, and the database name from `MONGODB_DB_NAME` (default `fareride`), so FareRide never shares collections with other applications on the same cluster. This document is the contract the Mongoose schemas implement from Phase 2 onward.
+
+Why MongoDB, and what it costs, is recorded in [ADR 0009](adr/0009-mongodb-primary-database.md).
 
 ## Conventions
 
-| Convention         | Rule                                                                                                            |
-| ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| Primary keys       | UUIDv7 (`uuid`), generated in the application; time-ordered, so B-tree inserts stay local                       |
-| Names              | `snake_case` tables and columns in SQL, mapped to `camelCase` in Prisma with `@map` / `@@map`                   |
-| Timestamps         | `created_at`, `updated_at` (`timestamptz`) on every table; event tables have `created_at` only                  |
-| Money              | `amount_minor BIGINT` + `currency CHAR(3)` (ISO 4217). Never floating point                                     |
-| Phone numbers      | E.164 strings, validated with libphonenumber; default region from configuration                                 |
-| Geography          | `geography(Point, 4326)` for points, `geography(Polygon, 4326)` for service zones                               |
-| Soft delete        | `deleted_at` only on `user`, `restaurant`, `menu_item`, `promotion`. Financial and event tables are append-only |
-| Optimistic locking | `version INT` on `ride`, `order`, `delivery`, `wallet`; every write checks and increments it                    |
-| Enums              | PostgreSQL enums for closed sets that change with code (statuses); lookup tables for sets admins edit           |
+| Convention             | Rule                                                                                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| IDs                    | `_id: ObjectId`; exposed in the API as 24-character hex strings                                                                          |
+| Names                  | Collections are camelCase plurals (`rides`, `walletTransactions`); fields are camelCase                                                  |
+| Timestamps             | `createdAt`, `updatedAt` (Mongoose `timestamps: true`) on every collection; event collections have `createdAt` only                      |
+| Money                  | Integer minor units plus currency: `{ amountMinor: 1250, currency: 'USD' }`. Never floating point. Values are validated as safe integers |
+| Phone numbers          | E.164 strings, validated with libphonenumber; default region from configuration                                                          |
+| Geography              | GeoJSON `Point` (`{ type: 'Point', coordinates: [lng, lat] }`) with `2dsphere` indexes; service areas are GeoJSON `Polygon`              |
+| Schema strictness      | Mongoose `strict: true` and `strictQuery: true`; every document has `schemaVersion` so shape changes can be migrated                     |
+| Soft delete            | `deletedAt` only on `users`, `restaurants`, `menuItems`, `promotions`. Financial and event collections are append-only                   |
+| Optimistic concurrency | `version` field on `rides`, `orders`, `deliveries`, `wallets`; every write filters on it and increments it                               |
+| Transactions           | Multi-document transactions (replica set required) for anything touching money or a state transition plus its event                      |
 
-## ER diagram
+## Embed or reference
+
+| Data                         | Choice                                                                 | Why                                                    |
+| ---------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| Customer and driver profiles | Embedded in `users` (`customerProfile`, `driverProfile`)               | Always read with the user, one-to-one                  |
+| Roles                        | Embedded array `roles` in `users`                                      | Small, read on every request                           |
+| Saved addresses              | Embedded array in `users` (max 20)                                     | Bounded, read with the profile                         |
+| Sessions                     | Own collection `sessions`                                              | Unbounded over time, queried by token hash, TTL expiry |
+| Vehicles, driver documents   | Own collections                                                        | Reviewed and queried independently by admins           |
+| Ride state and timestamps    | Fields on `rides`                                                      | One document per ride, updated atomically              |
+| Ride events                  | Own collection `rideEvents`                                            | Unbounded audit trail; written in the same transaction |
+| Ride location breadcrumbs    | Time-series collection `rideLocations`                                 | High volume, time-ordered, expires by TTL              |
+| Order items                  | Embedded in `orders` with price snapshots                              | Fixed once placed, always read with the order          |
+| Menus                        | `menuCategories` embedded in `restaurants`; `menuItems` own collection | Items change independently and are searched            |
+| Wallet ledger                | Own collection `walletTransactions`                                    | Append-only, unbounded                                 |
+
+## Data model
 
 ```mermaid
 erDiagram
-    user ||--o| customer : "has profile"
-    user ||--o| driver : "has profile"
-    user ||--o{ user_role : "granted"
-    user ||--o{ session : "logs in via"
-    user ||--o{ address : "saves"
-    user ||--|| wallet : "owns"
-    user ||--o{ notification : "receives"
-    user ||--o{ support_ticket : "opens"
-    user ||--o{ audit_log : "acts in"
-    city ||--o{ ride : "hosts"
-    driver ||--o{ vehicle : "registers"
-    driver ||--o{ driver_document : "uploads"
-    vehicle ||--o{ driver_document : "has"
-    customer ||--o{ ride : "requests"
-    driver ||--o{ ride : "fulfils"
-    vehicle ||--o{ ride : "used for"
-    ride ||--o{ ride_event : "transitions"
-    ride ||--o{ ride_location : "breadcrumbs"
-    ride ||--o{ ride_offer : "offered"
-    driver ||--o{ ride_offer : "receives"
-    ride ||--o{ rating : "rated in"
-    ride ||--o| payment : "paid by"
-    payment ||--o{ refund : "refunded by"
-    payment ||--o{ payment_event : "webhook log"
-    wallet ||--o{ wallet_transaction : "ledger"
-    promotion ||--o{ promotion_redemption : "redeemed"
-    restaurant ||--o{ restaurant_staff : "employs"
-    restaurant ||--o{ menu_category : "has"
-    menu_category ||--o{ menu_item : "contains"
-    customer ||--o{ order : "places"
-    restaurant ||--o{ order : "receives"
-    order ||--|{ order_item : "contains"
-    menu_item ||--o{ order_item : "ordered as"
-    order ||--o| delivery : "delivered by"
-    driver ||--o{ delivery : "carries"
-    delivery ||--o{ delivery_event : "transitions"
-    order ||--o| payment : "paid by"
-    delivery ||--o| payment : "paid by"
+    users ||--o{ sessions : "logs in via"
+    users ||--|| wallets : "owns"
+    users ||--o{ vehicles : "registers (drivers)"
+    users ||--o{ driverDocuments : "uploads (drivers)"
+    users ||--o{ notifications : "receives"
+    users ||--o{ supportTickets : "opens"
+    users ||--o{ auditLogs : "acts in"
+    cities ||--o{ fareRules : "prices"
+    cities ||--o{ rides : "hosts"
+    users ||--o{ rides : "requests or drives"
+    vehicles ||--o{ rides : "used for"
+    rides ||--o{ rideEvents : "transitions"
+    rides ||--o{ rideLocations : "breadcrumbs"
+    rides ||--o{ rideOffers : "offered"
+    rides ||--o{ ratings : "rated in"
+    rides ||--o| payments : "paid by"
+    payments ||--o{ refunds : "refunded by"
+    payments ||--o{ paymentEvents : "webhook log"
+    wallets ||--o{ walletTransactions : "ledger"
+    promotions ||--o{ promotionRedemptions : "redeemed"
+    restaurants ||--o{ menuItems : "offers"
+    users ||--o{ orders : "places"
+    restaurants ||--o{ orders : "receives"
+    orders ||--o| deliveries : "delivered by"
+    deliveries ||--o{ deliveryEvents : "transitions"
+    orders ||--o| payments : "paid by"
+    deliveries ||--o| payments : "paid by"
 ```
 
-## Tables
+## Collections
 
 ### Identity and access
 
-| Table       | Key columns                                                                                                                                                                                                              | Notes                                            |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| `user`      | `id`, `phone` (unique, nullable), `email` (unique, nullable, citext), `password_hash` (nullable, Argon2id), `totp_secret_enc` (nullable), `status` (`ACTIVE`, `SUSPENDED`, `DELETED`), `token_version INT`, `deleted_at` | `CHECK (phone IS NOT NULL OR email IS NOT NULL)` |
-| `user_role` | `user_id`, `role` (`CUSTOMER`, `DRIVER`, `RESTAURANT`, `SUPPORT`, `ADMIN`, `SUPER_ADMIN`)                                                                                                                                | PK (`user_id`, `role`)                           |
-| `session`   | `id`, `user_id`, `family_id`, `refresh_hash` (unique), `user_agent`, `ip`, `expires_at`, `revoked_at`, `replaced_by`                                                                                                     | Refresh-token rotation and reuse detection       |
-| `customer`  | `user_id` (PK), `display_name`, `avatar_key`, `default_payment_method`, `rating_avg`, `rating_count`                                                                                                                     |                                                  |
-| `address`   | `id`, `user_id`, `label`, `line`, `location geography`, `place_id`                                                                                                                                                       |                                                  |
+| Collection | Key fields                                                                                                                                                                                                                                                                                                                                                                                                             | Notes                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `users`    | `phone`, `email`, `passwordHash`, `totpSecretEnc`, `status` (`ACTIVE`, `SUSPENDED`, `DELETED`), `roles[]` (`CUSTOMER`, `DRIVER`, `RESTAURANT`, `SUPPORT`, `ADMIN`, `SUPER_ADMIN`), `tokenVersion`, `customerProfile { displayName, avatarKey, ratingAvg, ratingCount, addresses[] }`, `driverProfile { cityId, kycStatus, availability, ratingAvg, ratingCount, acceptanceRate, approvedBy, approvedAt }`, `deletedAt` | Unique sparse indexes on `phone` and `email`; validator requires at least one of them |
+| `sessions` | `userId`, `familyId`, `refreshHash`, `userAgent`, `ip`, `expiresAt`, `revokedAt`, `replacedBy`                                                                                                                                                                                                                                                                                                                         | Unique `refreshHash`; TTL index on `expiresAt`                                        |
+
+`driverProfile.kycStatus` is `NOT_SUBMITTED`, `PENDING`, `APPROVED`, `REJECTED` or `SUSPENDED`. `driverProfile.availability` is `OFFLINE`, `ONLINE` or `ON_TRIP`, mirrored in Redis for dispatch.
 
 ### Drivers and vehicles
 
-| Table             | Key columns                                                                                                                                                                                                                               | Notes                                                |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `driver`          | `user_id` (PK), `city_id`, `kyc_status` (`NOT_SUBMITTED`, `PENDING`, `APPROVED`, `REJECTED`, `SUSPENDED`), `availability` (`OFFLINE`, `ONLINE`, `ON_TRIP`), `rating_avg`, `rating_count`, `acceptance_rate`, `approved_by`, `approved_at` | Availability mirrored in Redis for dispatch          |
-| `vehicle`         | `id`, `driver_id`, `service_type` (`BIKE`, `CAR`, `CAR_XL`), `make`, `model`, `colour`, `plate` (unique per city), `year`, `status` (`PENDING`, `APPROVED`, `REJECTED`), `is_active`                                                      | One active vehicle per driver (partial unique index) |
-| `driver_document` | `id`, `driver_id`, `vehicle_id` (nullable), `type` (`LICENCE`, `ID`, `REGISTRATION`, `INSURANCE`, `PHOTO`), `storage_key`, `mime`, `size_bytes`, `sha256`, `status`, `expires_on`, `reviewed_by`, `review_note`                           | Files live in a private bucket                       |
+| Collection        | Key fields                                                                                                                                                                              | Notes                                                                                                                 |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `vehicles`        | `driverId`, `cityId`, `serviceType` (`BIKE`, `CAR`, `CAR_XL`), `make`, `model`, `colour`, `plate`, `year`, `status` (`PENDING`, `APPROVED`, `REJECTED`), `isActive`                     | Unique (`cityId`, `plate`); partial unique index on `driverId` where `isActive: true` (one active vehicle per driver) |
+| `driverDocuments` | `driverId`, `vehicleId`, `type` (`LICENCE`, `ID`, `REGISTRATION`, `INSURANCE`, `PHOTO`), `storageKey`, `mime`, `sizeBytes`, `sha256`, `status`, `expiresOn`, `reviewedBy`, `reviewNote` | Files live in a private bucket                                                                                        |
 
 ### Rides
 
-| Table           | Key columns                                                                                                                                                                                                                                                                                                                                                                                                                                          | Notes                                                         |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `city`          | `id`, `name`, `time_zone`, `currency`, `service_area geography(Polygon)`, `is_active`                                                                                                                                                                                                                                                                                                                                                                | Country-specific defaults come from here, not code            |
-| `fare_rule`     | `id`, `city_id`, `service_type`, `base_minor`, `per_km_minor`, `per_min_minor`, `minimum_minor`, `booking_fee_minor`, `cancel_fee_minor`, `commission_bps`, `effective_from`                                                                                                                                                                                                                                                                         | Edited by admins; cached                                      |
-| `ride`          | `id`, `city_id`, `customer_id`, `driver_id` (nullable), `vehicle_id` (nullable), `status`, `service_type`, `pickup geography`, `pickup_label`, `dropoff geography`, `dropoff_label`, `quote_id`, `quoted_fare_minor`, `final_fare_minor`, `currency`, `distance_m`, `duration_s`, `payment_method` (`CARD`, `WALLET`, `CASH`), `cancel_reason`, `cancelled_by`, `requested_at`, `assigned_at`, `arrived_at`, `started_at`, `completed_at`, `version` | See constraints below                                         |
-| `ride_event`    | `id`, `ride_id`, `from_status`, `to_status`, `actor_type` (`CUSTOMER`, `DRIVER`, `SYSTEM`, `ADMIN`), `actor_id`, `metadata jsonb`, `request_id`, `created_at`                                                                                                                                                                                                                                                                                        | Append-only history                                           |
-| `ride_offer`    | `id`, `ride_id`, `driver_id`, `offered_at`, `expires_at`, `response` (`ACCEPTED`, `DECLINED`, `EXPIRED`), `responded_at`                                                                                                                                                                                                                                                                                                                             | Acceptance-rate source                                        |
-| `ride_location` | `ride_id`, `recorded_at`, `location geography`, `speed_mps`, `heading`                                                                                                                                                                                                                                                                                                                                                                               | Downsampled to about one point per 10 s; partitioned by month |
-| `rating`        | `id`, `ride_id` or `order_id`, `rater_id`, `ratee_id`, `ratee_type`, `stars SMALLINT CHECK 1..5`, `comment`                                                                                                                                                                                                                                                                                                                                          | Unique (`ride_id`, `rater_id`)                                |
+| Collection      | Key fields                                                                                                                                                                                                                                                                                                                                                                           | Notes                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `cities`        | `name`, `timeZone`, `currency`, `serviceArea` (GeoJSON Polygon), `isActive`                                                                                                                                                                                                                                                                                                          | Country-specific defaults come from here, not code               |
+| `fareRules`     | `cityId`, `serviceType`, `baseMinor`, `perKmMinor`, `perMinMinor`, `minimumMinor`, `bookingFeeMinor`, `cancelFeeMinor`, `commissionBps`, `effectiveFrom`                                                                                                                                                                                                                             | Edited by admins; cached                                         |
+| `rides`         | `cityId`, `customerId`, `driverId`, `vehicleId`, `status`, `isActive`, `serviceType`, `pickup { point, label }`, `dropoff { point, label }`, `quoteId`, `quotedFare`, `finalFare` (Money), `distanceM`, `durationS`, `paymentMethod` (`CARD`, `WALLET`, `CASH`), `cancellation { by, reason, fee }`, `requestedAt`, `assignedAt`, `arrivedAt`, `startedAt`, `completedAt`, `version` | See invariants below                                             |
+| `rideEvents`    | `rideId`, `fromStatus`, `toStatus`, `actorType` (`CUSTOMER`, `DRIVER`, `SYSTEM`, `ADMIN`), `actorId`, `metadata`, `requestId`, `createdAt`                                                                                                                                                                                                                                           | Append-only history                                              |
+| `rideOffers`    | `rideId`, `driverId`, `offeredAt`, `expiresAt`, `response` (`ACCEPTED`, `DECLINED`, `EXPIRED`), `respondedAt`                                                                                                                                                                                                                                                                        | Acceptance-rate source                                           |
+| `rideLocations` | time-series: `timeField: recordedAt`, `metaField: rideId`, `point`, `speedMps`, `heading`                                                                                                                                                                                                                                                                                            | Downsampled to about one point per 10 s; expires after 13 months |
+| `ratings`       | `subjectType` (`RIDE`, `ORDER`), `subjectId`, `raterId`, `rateeId`, `stars` (1 to 5), `comment`                                                                                                                                                                                                                                                                                      | Unique (`subjectId`, `raterId`)                                  |
 
 ### Money
 
-| Table                  | Key columns                                                                                                                                                                                                                                                                                                                                         | Notes                                                                                                                           |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `payment`              | `id`, `subject_type` (`RIDE`, `ORDER`, `DELIVERY`, `TOPUP`), `subject_id`, `user_id`, `method`, `provider`, `provider_ref` (unique per provider), `status` (`PENDING`, `AUTHORIZED`, `CAPTURED`, `FAILED`, `CANCELLED`, `PARTIALLY_REFUNDED`, `REFUNDED`), `amount_minor`, `captured_minor`, `currency`, `idempotency_key` (unique), `failure_code` |                                                                                                                                 |
-| `payment_event`        | `id`, `provider`, `provider_event_id`, `type`, `payload jsonb`, `received_at`, `processed_at`                                                                                                                                                                                                                                                       | Unique (`provider`, `provider_event_id`): replayed webhooks are no-ops                                                          |
-| `refund`               | `id`, `payment_id`, `amount_minor`, `reason`, `status`, `provider_ref`, `requested_by`, `idempotency_key` (unique)                                                                                                                                                                                                                                  |                                                                                                                                 |
-| `wallet`               | `id`, `user_id` (unique), `currency`, `balance_minor`, `credit_limit_minor` (default 0), `version`                                                                                                                                                                                                                                                  | `CHECK (balance_minor >= -credit_limit_minor)`; only driver wallets get a credit limit, to absorb commission owed on cash trips |
-| `wallet_transaction`   | `id`, `wallet_id`, `type` (`TOPUP`, `RIDE_CHARGE`, `EARNING`, `COMMISSION`, `PAYOUT`, `REFUND`, `ADJUSTMENT`), `amount_minor` (signed), `balance_after_minor`, `reference_type`, `reference_id`, `idempotency_key` (unique)                                                                                                                         | Append-only ledger                                                                                                              |
-| `promotion`            | `id`, `code` (unique, citext), `type` (`PERCENT`, `FIXED`), `value`, `max_discount_minor`, `min_spend_minor`, `service_scope`, `starts_at`, `ends_at`, `total_limit`, `per_user_limit`, `deleted_at`                                                                                                                                                |                                                                                                                                 |
-| `promotion_redemption` | `id`, `promotion_id`, `user_id`, `ride_id` or `order_id`, `discount_minor`                                                                                                                                                                                                                                                                          |                                                                                                                                 |
+| Collection             | Key fields                                                                                                                                                                                                                                                                               | Notes                                                                                                                                                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `payments`             | `subjectType` (`RIDE`, `ORDER`, `DELIVERY`, `TOPUP`), `subjectId`, `userId`, `method`, `provider`, `providerRef`, `status` (`PENDING`, `AUTHORIZED`, `CAPTURED`, `FAILED`, `CANCELLED`, `PARTIALLY_REFUNDED`, `REFUNDED`), `amount`, `captured` (Money), `idempotencyKey`, `failureCode` | Unique (`provider`, `providerRef`) and unique `idempotencyKey`                                                                                                                                                       |
+| `paymentEvents`        | `provider`, `providerEventId`, `type`, `payload`, `receivedAt`, `processedAt`                                                                                                                                                                                                            | Unique (`provider`, `providerEventId`): replayed webhooks are no-ops                                                                                                                                                 |
+| `refunds`              | `paymentId`, `amount`, `reason`, `status`, `providerRef`, `requestedBy`, `idempotencyKey`                                                                                                                                                                                                | Unique `idempotencyKey`                                                                                                                                                                                              |
+| `wallets`              | `userId`, `currency`, `balanceMinor`, `creditLimitMinor` (default 0), `version`                                                                                                                                                                                                          | Unique `userId`. Debits are conditional updates (`balanceMinor >= amount - creditLimitMinor`), so the balance cannot pass the limit. Only driver wallets get a credit limit, to absorb commission owed on cash trips |
+| `walletTransactions`   | `walletId`, `type` (`TOPUP`, `RIDE_CHARGE`, `EARNING`, `COMMISSION`, `PAYOUT`, `REFUND`, `ADJUSTMENT`), `amountMinor` (signed), `balanceAfterMinor`, `reference { type, id }`, `idempotencyKey`                                                                                          | Append-only ledger; unique `idempotencyKey`                                                                                                                                                                          |
+| `promotions`           | `code`, `type` (`PERCENT`, `FIXED`), `value`, `maxDiscountMinor`, `minSpendMinor`, `serviceScope`, `startsAt`, `endsAt`, `totalLimit`, `perUserLimit`, `deletedAt`                                                                                                                       | Unique `code` with case-insensitive collation                                                                                                                                                                        |
+| `promotionRedemptions` | `promotionId`, `userId`, `subjectType`, `subjectId`, `discountMinor`                                                                                                                                                                                                                     |                                                                                                                                                                                                                      |
 
 ### Food and delivery (Phase 11)
 
-| Table              | Key columns                                                                                                                                                                                               |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `restaurant`       | `id`, `city_id`, `name`, `slug` (unique), `location geography`, `cuisine_tags text[]`, `is_open`, `opening_hours jsonb`, `prep_time_min`, `rating_avg`, `menu_version`, `deleted_at`                      |
-| `restaurant_staff` | `restaurant_id`, `user_id`, `role` (`OWNER`, `MANAGER`, `STAFF`)                                                                                                                                          |
-| `menu_category`    | `id`, `restaurant_id`, `name`, `position`                                                                                                                                                                 |
-| `menu_item`        | `id`, `category_id`, `name`, `description`, `price_minor`, `image_key`, `is_available`, `deleted_at`                                                                                                      |
-| `order`            | `id`, `customer_id`, `restaurant_id`, `status`, `subtotal_minor`, `delivery_fee_minor`, `discount_minor`, `total_minor`, `currency`, `dropoff geography`, `version`                                       |
-| `order_item`       | `id`, `order_id`, `menu_item_id`, `name_snapshot`, `unit_price_minor`, `quantity`, `notes`                                                                                                                |
-| `delivery`         | `id`, `kind` (`FOOD`, `PARCEL`), `order_id` (nullable), `sender_id` (parcel), `driver_id`, `status`, `pickup geography`, `dropoff geography`, `package_details jsonb`, `fee_minor`, `pin_hash`, `version` |
-| `delivery_event`   | `id`, `delivery_id`, `from_status`, `to_status`, `actor_type`, `actor_id`, `metadata jsonb`                                                                                                               |
+| Collection       | Key fields                                                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `restaurants`    | `cityId`, `name`, `slug` (unique), `location` (Point, `2dsphere`), `cuisineTags[]`, `isOpen`, `openingHours`, `prepTimeMin`, `ratingAvg`, `menuVersion`, `menuCategories[] { id, name, position }`, `staff[] { userId, role }`, `deletedAt` |
+| `menuItems`      | `restaurantId`, `categoryId`, `name`, `description`, `priceMinor`, `imageKey`, `isAvailable`, `deletedAt`                                                                                                                                   |
+| `orders`         | `customerId`, `restaurantId`, `status`, `isActive`, `items[] { menuItemId, nameSnapshot, unitPriceMinor, quantity, notes }`, `subtotal`, `deliveryFee`, `discount`, `total` (Money), `dropoff`, `version`                                   |
+| `deliveries`     | `kind` (`FOOD`, `PARCEL`), `orderId`, `senderId`, `driverId`, `status`, `isActive`, `pickup`, `dropoff`, `packageDetails`, `fee`, `pinHash`, `version`                                                                                      |
+| `deliveryEvents` | `deliveryId`, `fromStatus`, `toStatus`, `actorType`, `actorId`, `metadata`                                                                                                                                                                  |
 
 ### Operations
 
-| Table               | Key columns                                                                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `notification`      | `id`, `user_id`, `type`, `title`, `body`, `data jsonb`, `read_at`, `channels text[]`                                                  |
-| `push_subscription` | `id`, `user_id`, `endpoint` (unique), `keys jsonb`                                                                                    |
-| `support_ticket`    | `id`, `user_id`, `subject_type`, `subject_id`, `status`, `priority`, `assignee_id`                                                    |
-| `audit_log`         | `id`, `actor_id`, `actor_role`, `action`, `entity_type`, `entity_id`, `before jsonb`, `after jsonb`, `ip`, `request_id`, `created_at` |
-| `system_config`     | `key` (PK), `value jsonb`, `updated_by`                                                                                               |
+| Collection          | Key fields                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `notifications`     | `userId`, `type`, `title`, `body`, `data`, `readAt`, `channels[]`                                             |
+| `pushSubscriptions` | `userId`, `endpoint` (unique), `keys`                                                                         |
+| `supportTickets`    | `userId`, `subjectType`, `subjectId`, `status`, `priority`, `assigneeId`                                      |
+| `auditLogs`         | `actorId`, `actorRole`, `action`, `entityType`, `entityId`, `before`, `after`, `ip`, `requestId`, `createdAt` |
+| `systemConfig`      | `_id` (the key), `value`, `updatedBy`                                                                         |
 
 ## State enums
 
@@ -137,50 +140,84 @@ erDiagram
 
 A food order and its delivery are two linked machines: courier search starts when the restaurant accepts, in parallel with preparation.
 
-## Constraints that protect invariants
+## Invariants the database enforces
 
-```sql
--- One active ride per customer and per driver
-CREATE UNIQUE INDEX ride_one_active_per_customer ON ride (customer_id)
-  WHERE status NOT IN ('TRIP_COMPLETED', 'CANCELLED', 'NO_DRIVER_FOUND');
-CREATE UNIQUE INDEX ride_one_active_per_driver ON ride (driver_id)
-  WHERE driver_id IS NOT NULL AND status NOT IN ('TRIP_COMPLETED', 'CANCELLED', 'NO_DRIVER_FOUND');
+MongoDB has no foreign keys or check constraints across documents, so the invariants that matter are enforced with unique partial indexes, conditional updates and transactions:
 
--- Assigned states must have a driver
-ALTER TABLE ride ADD CONSTRAINT ride_driver_when_assigned CHECK (
-  status IN ('REQUESTED', 'SEARCHING_DRIVER', 'CANCELLED', 'NO_DRIVER_FOUND') OR driver_id IS NOT NULL
+```js
+// One active ride per customer and per driver.
+// `isActive` is true for every non-terminal status and is set in the same update as `status`.
+db.rides.createIndex(
+  { customerId: 1 },
+  { unique: true, partialFilterExpression: { isActive: true } },
+);
+db.rides.createIndex(
+  { driverId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isActive: true, driverId: { $exists: true } },
+  },
 );
 
--- Guarded transition (pattern used for every state change)
-UPDATE ride SET status = 'DRIVER_ASSIGNED', driver_id = $driver, version = version + 1, assigned_at = now()
-WHERE id = $id AND status = 'SEARCHING_DRIVER' AND version = $version;
--- 0 rows updated => 409 conflict
+// Guarded transition (the pattern for every state change), inside a transaction with the event insert.
+db.rides.findOneAndUpdate(
+  { _id: rideId, status: "SEARCHING_DRIVER", version: expectedVersion },
+  {
+    $set: { status: "DRIVER_ASSIGNED", driverId, assignedAt: now },
+    $inc: { version: 1 },
+  },
+  { returnDocument: "after", session },
+);
+// null => another actor changed the ride first => 409 conflict
+
+// Wallet debit that cannot overdraw.
+db.wallets.updateOne(
+  {
+    _id: walletId,
+    $expr: { $gte: [{ $add: ["$balanceMinor", "$creditLimitMinor"] }, amount] },
+  },
+  { $inc: { balanceMinor: -amount, version: 1 } },
+  { session },
+);
 ```
+
+A JSON Schema validator on each money and ride collection also rejects documents with missing required fields or non-integer amounts, as a second line of defence behind the Mongoose schemas.
 
 ## Indexes from query patterns
 
-| Query                     | Index                                                           |
-| ------------------------- | --------------------------------------------------------------- |
-| Customer ride history     | `ride (customer_id, created_at DESC)`                           |
-| Driver trips and earnings | `ride (driver_id, completed_at DESC)`                           |
-| Ops: live rides           | `ride (status) WHERE status NOT IN (terminal states)`           |
-| Ride timeline             | `ride_event (ride_id, created_at)`                              |
-| Wallet statement          | `wallet_transaction (wallet_id, created_at DESC)`               |
-| Payment by subject        | `payment (subject_type, subject_id)`                            |
-| KYC review queue          | `driver (kyc_status, updated_at) WHERE kyc_status = 'PENDING'`  |
-| Restaurants near a point  | GIST on `restaurant (location)`                                 |
-| Audit trail of an entity  | `audit_log (entity_type, entity_id, created_at DESC)`           |
-| Unread notifications      | `notification (user_id, created_at DESC) WHERE read_at IS NULL` |
+| Query                     | Index                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| Customer ride history     | `rides { customerId: 1, createdAt: -1 }`                                      |
+| Driver trips and earnings | `rides { driverId: 1, completedAt: -1 }`                                      |
+| Ops: live rides           | `rides { isActive: 1, status: 1 }` (partial on `isActive: true`)              |
+| Ride timeline             | `rideEvents { rideId: 1, createdAt: 1 }`                                      |
+| Wallet statement          | `walletTransactions { walletId: 1, createdAt: -1 }`                           |
+| Payment by subject        | `payments { subjectType: 1, subjectId: 1 }`                                   |
+| KYC review queue          | `users { 'driverProfile.kycStatus': 1, updatedAt: 1 }` (partial on `PENDING`) |
+| Restaurants near a point  | `restaurants { location: '2dsphere' }`                                        |
+| Audit trail of an entity  | `auditLogs { entityType: 1, entityId: 1, createdAt: -1 }`                     |
+| Unread notifications      | `notifications { userId: 1, createdAt: -1 }` (partial on `readAt: null`)      |
+| Session expiry            | `sessions { expiresAt: 1 }` TTL                                               |
 
-## Data that does not live in PostgreSQL
+Indexes are declared on the Mongoose schemas and applied by a release job with `syncIndexes`, never by `autoIndex` in production.
+
+## Data that does not live in MongoDB
 
 Live driver positions, the driver geo index, offer locks, OTP challenges, rate-limit counters and idempotency responses live in Redis. Key names and TTLs are listed in [ARCHITECTURE.md section 8](ARCHITECTURE.md#8-caching).
+
+## Environments
+
+| Environment         | MongoDB                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Local               | `mongo:8` in Docker Compose, started as a single-node replica set so transactions work                                          |
+| CI                  | The same image as a single-node replica set                                                                                     |
+| Staging, production | Atlas cluster, separate database per environment (`fareride_staging`, `fareride`), separate database users with least privilege |
 
 ## Retention
 
 | Data                     | Retention                                                 |
 | ------------------------ | --------------------------------------------------------- |
-| `ride_location`          | 13 months, then dropped by partition                      |
-| `payment_event` payloads | 18 months                                                 |
-| `audit_log`              | 7 years (configurable to match the launch market's rules) |
+| `rideLocations`          | 13 months (time-series `expireAfterSeconds`)              |
+| `paymentEvents` payloads | 18 months (TTL index)                                     |
+| `auditLogs`              | 7 years (configurable to match the launch market's rules) |
 | Deleted users            | Anonymised; financial records kept as legally required    |

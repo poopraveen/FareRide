@@ -18,7 +18,7 @@ FareRide is a multi-service mobility and delivery platform: ride-hailing first, 
 ## Planned stack
 
 - **Web:** Next.js (App Router), React, TypeScript, Tailwind CSS, shadcn/ui, TanStack Query, Zustand, React Hook Form + Zod, MapLibre GL, PWA
-- **API:** NestJS on Fastify, Prisma, PostgreSQL + PostGIS, Redis, Socket.IO, BullMQ, OpenAPI
+- **API:** NestJS on Fastify, MongoDB (Mongoose), Redis, Socket.IO, BullMQ, OpenAPI
 - **Tooling:** Turborepo, pnpm, ESLint, Prettier, Vitest, Playwright, Husky, GitHub Actions, Docker
 
 ## Repository layout (from Phase 2)
