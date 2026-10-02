@@ -14,5 +14,6 @@ Each record captures one decision with real alternatives: the context, the choic
 | [0008](0008-country-agnostic-configuration.md) | Country-specific behaviour as configuration           | Accepted |
 | [0009](0009-mongodb-primary-database.md)       | MongoDB as the primary database                       | Accepted |
 | [0010](0010-esm-and-typescript-6.md)           | ESM everywhere and TypeScript 6 for now               | Accepted |
+| [0011](0011-owned-component-library.md)        | An owned component library on Radix primitives        | Accepted |
 
 Template: copy `0001` and keep the headings Context, Decision, Consequences.

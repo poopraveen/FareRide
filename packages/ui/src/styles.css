@@ -1,0 +1,206 @@
+/*
+ * FareRide design tokens and themes.
+ *
+ * Apps import this file after Tailwind:
+ *   @import 'tailwindcss';
+ *   @import '@fareride/ui/styles.css';
+ *
+ * Colours are semantic (what a colour is for, not what it looks like), so
+ * components never name a hue. The light theme is the default; the dark theme
+ * applies when the OS prefers dark, unless the page sets data-theme="light".
+ * data-theme="dark" forces dark. Contrast of every text and control pair is
+ * checked by test/tokens.test.ts against WCAG 2.2 AA.
+ */
+
+/* Scan the components so their utility classes are generated in the apps. */
+@source './';
+
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces and text */
+  --fr-background: oklch(0.985 0.004 165);
+  --fr-foreground: oklch(0.22 0.02 255);
+  --fr-surface: oklch(1 0 0);
+  --fr-surface-muted: oklch(0.955 0.008 165);
+  --fr-muted-foreground: oklch(0.46 0.02 255);
+  --fr-border: oklch(0.9 0.01 255);
+  --fr-input: oklch(0.58 0.02 255);
+  --fr-ring: oklch(0.5 0.13 165);
+
+  /* Actions */
+  --fr-primary: oklch(0.5 0.12 165);
+  --fr-primary-hover: oklch(0.44 0.11 165);
+  --fr-primary-foreground: oklch(1 0 0);
+  --fr-secondary: oklch(0.93 0.03 165);
+  --fr-secondary-hover: oklch(0.89 0.04 165);
+  --fr-secondary-foreground: oklch(0.3 0.07 165);
+  --fr-danger: oklch(0.52 0.19 27);
+  --fr-danger-hover: oklch(0.46 0.18 27);
+  --fr-danger-foreground: oklch(1 0 0);
+
+  /* Status tones: a soft background with strong text on it */
+  --fr-info-soft: oklch(0.95 0.03 250);
+  --fr-info-strong: oklch(0.4 0.12 255);
+  --fr-success-soft: oklch(0.95 0.04 155);
+  --fr-success-strong: oklch(0.38 0.09 155);
+  --fr-warning-soft: oklch(0.96 0.06 85);
+  --fr-warning-strong: oklch(0.42 0.09 65);
+  --fr-danger-soft: oklch(0.95 0.03 25);
+  --fr-danger-strong: oklch(0.45 0.17 27);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --fr-background: oklch(0.17 0.015 255);
+    --fr-foreground: oklch(0.96 0.008 255);
+    --fr-surface: oklch(0.21 0.015 255);
+    --fr-surface-muted: oklch(0.26 0.015 255);
+    --fr-muted-foreground: oklch(0.74 0.02 255);
+    --fr-border: oklch(0.32 0.015 255);
+    --fr-input: oklch(0.56 0.02 255);
+    --fr-ring: oklch(0.76 0.13 165);
+
+    --fr-primary: oklch(0.76 0.13 165);
+    --fr-primary-hover: oklch(0.82 0.12 165);
+    --fr-primary-foreground: oklch(0.2 0.04 165);
+    --fr-secondary: oklch(0.31 0.04 165);
+    --fr-secondary-hover: oklch(0.36 0.05 165);
+    --fr-secondary-foreground: oklch(0.93 0.04 165);
+    --fr-danger: oklch(0.7 0.16 25);
+    --fr-danger-hover: oklch(0.76 0.14 25);
+    --fr-danger-foreground: oklch(0.18 0.04 25);
+
+    --fr-info-soft: oklch(0.27 0.05 255);
+    --fr-info-strong: oklch(0.86 0.07 250);
+    --fr-success-soft: oklch(0.27 0.05 155);
+    --fr-success-strong: oklch(0.86 0.1 155);
+    --fr-warning-soft: oklch(0.29 0.05 75);
+    --fr-warning-strong: oklch(0.88 0.11 85);
+    --fr-danger-soft: oklch(0.28 0.06 25);
+    --fr-danger-strong: oklch(0.85 0.08 25);
+  }
+}
+
+:root[data-theme='dark'] {
+  --fr-background: oklch(0.17 0.015 255);
+  --fr-foreground: oklch(0.96 0.008 255);
+  --fr-surface: oklch(0.21 0.015 255);
+  --fr-surface-muted: oklch(0.26 0.015 255);
+  --fr-muted-foreground: oklch(0.74 0.02 255);
+  --fr-border: oklch(0.32 0.015 255);
+  --fr-input: oklch(0.56 0.02 255);
+  --fr-ring: oklch(0.76 0.13 165);
+
+  --fr-primary: oklch(0.76 0.13 165);
+  --fr-primary-hover: oklch(0.82 0.12 165);
+  --fr-primary-foreground: oklch(0.2 0.04 165);
+  --fr-secondary: oklch(0.31 0.04 165);
+  --fr-secondary-hover: oklch(0.36 0.05 165);
+  --fr-secondary-foreground: oklch(0.93 0.04 165);
+  --fr-danger: oklch(0.7 0.16 25);
+  --fr-danger-hover: oklch(0.76 0.14 25);
+  --fr-danger-foreground: oklch(0.18 0.04 25);
+
+  --fr-info-soft: oklch(0.27 0.05 255);
+  --fr-info-strong: oklch(0.86 0.07 250);
+  --fr-success-soft: oklch(0.27 0.05 155);
+  --fr-success-strong: oklch(0.86 0.1 155);
+  --fr-warning-soft: oklch(0.29 0.05 75);
+  --fr-warning-strong: oklch(0.88 0.11 85);
+  --fr-danger-soft: oklch(0.28 0.06 25);
+  --fr-danger-strong: oklch(0.85 0.08 25);
+}
+
+@theme inline {
+  --color-background: var(--fr-background);
+  --color-foreground: var(--fr-foreground);
+  --color-surface: var(--fr-surface);
+  --color-surface-muted: var(--fr-surface-muted);
+  --color-muted-foreground: var(--fr-muted-foreground);
+  --color-border: var(--fr-border);
+  --color-input: var(--fr-input);
+  --color-ring: var(--fr-ring);
+  --color-primary: var(--fr-primary);
+  --color-primary-hover: var(--fr-primary-hover);
+  --color-primary-foreground: var(--fr-primary-foreground);
+  --color-secondary: var(--fr-secondary);
+  --color-secondary-hover: var(--fr-secondary-hover);
+  --color-secondary-foreground: var(--fr-secondary-foreground);
+  --color-danger: var(--fr-danger);
+  --color-danger-hover: var(--fr-danger-hover);
+  --color-danger-foreground: var(--fr-danger-foreground);
+  --color-info-soft: var(--fr-info-soft);
+  --color-info-strong: var(--fr-info-strong);
+  --color-success-soft: var(--fr-success-soft);
+  --color-success-strong: var(--fr-success-strong);
+  --color-warning-soft: var(--fr-warning-soft);
+  --color-warning-strong: var(--fr-warning-strong);
+  --color-danger-soft: var(--fr-danger-soft);
+  --color-danger-strong: var(--fr-danger-strong);
+}
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.06), 0 2px 8px oklch(0 0 0 / 0.04);
+  --shadow-overlay: 0 12px 32px oklch(0 0 0 / 0.18), 0 2px 6px oklch(0 0 0 / 0.08);
+  --animate-fade-in: fr-fade-in 150ms ease-out;
+  --animate-scale-in: fr-scale-in 150ms ease-out;
+
+  @keyframes fr-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fr-scale-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -48%) scale(0.97);
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+
+  /* Every interactive element shows a visible focus indicator (WCAG 2.4.7, 2.4.13). */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

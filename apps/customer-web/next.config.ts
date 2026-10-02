@@ -9,6 +9,8 @@ const securityHeaders = [
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // packages/ui ships TypeScript source; Next compiles it with the app.
+  transpilePackages: ['@fareride/ui'],
   poweredByHeader: false,
   output: 'standalone',
   async headers() {
