@@ -55,25 +55,25 @@ One developer, one database, one deploy, and no distributed transactions. Micros
 
 ## 2. Backend modules
 
-| Module | Owns | Depends on |
-| --- | --- | --- |
-| `auth` | OTP, passwords, sessions, tokens, TOTP | users, notifications |
-| `users` | User, Customer profile, addresses | — |
-| `drivers` | Driver profile, KYC documents, availability | users, storage |
-| `vehicles` | Vehicles and their documents | drivers |
-| `pricing` | Fare rules, signed quotes, final fare | maps |
-| `rides` | Ride, RideEvent, RideLocation, state machine | pricing, dispatch, payments |
-| `dispatch` | Nearby search, offers, timeouts | drivers, maps, realtime |
-| `realtime` | Socket gateway, rooms, presence, location ingestion | auth |
-| `payments` | Payment, Refund, PaymentEvent, provider adapters | wallet |
-| `wallet` | Wallet, WalletTransaction ledger | — |
-| `promotions` | Promotion, PromotionRedemption | — |
-| `food` | Restaurant, menus, Order, OrderItem | payments, delivery |
-| `delivery` | Delivery (food and parcel), DeliveryEvent | dispatch, payments |
-| `notifications` | Notification, push, SMS and email fan-out | — |
-| `support` | SupportTicket | — |
-| `admin` | Dashboards and admin-only queries | read access via module services |
-| `audit` | AuditLog | — |
+| Module          | Owns                                                | Depends on                      |
+| --------------- | --------------------------------------------------- | ------------------------------- |
+| `auth`          | OTP, passwords, sessions, tokens, TOTP              | users, notifications            |
+| `users`         | User, Customer profile, addresses                   | —                               |
+| `drivers`       | Driver profile, KYC documents, availability         | users, storage                  |
+| `vehicles`      | Vehicles and their documents                        | drivers                         |
+| `pricing`       | Fare rules, signed quotes, final fare               | maps                            |
+| `rides`         | Ride, RideEvent, RideLocation, state machine        | pricing, dispatch, payments     |
+| `dispatch`      | Nearby search, offers, timeouts                     | drivers, maps, realtime         |
+| `realtime`      | Socket gateway, rooms, presence, location ingestion | auth                            |
+| `payments`      | Payment, Refund, PaymentEvent, provider adapters    | wallet                          |
+| `wallet`        | Wallet, WalletTransaction ledger                    | —                               |
+| `promotions`    | Promotion, PromotionRedemption                      | —                               |
+| `food`          | Restaurant, menus, Order, OrderItem                 | payments, delivery              |
+| `delivery`      | Delivery (food and parcel), DeliveryEvent           | dispatch, payments              |
+| `notifications` | Notification, push, SMS and email fan-out           | —                               |
+| `support`       | SupportTicket                                       | —                               |
+| `admin`         | Dashboards and admin-only queries                   | read access via module services |
+| `audit`         | AuditLog                                            | —                               |
 
 **Rules:**
 
@@ -102,12 +102,12 @@ src/
 └── styles/
 ```
 
-| State kind | Tool | Examples |
-| --- | --- | --- |
-| Server state | TanStack Query | Ride, history, wallet, restaurants |
+| State kind   | Tool                         | Examples                                              |
+| ------------ | ---------------------------- | ----------------------------------------------------- |
+| Server state | TanStack Query               | Ride, history, wallet, restaurants                    |
 | Client state | Zustand (small, per feature) | Booking draft, map viewport, socket connection status |
-| Form state | React Hook Form + Zod | Login, address, KYC upload, checkout |
-| URL state | Search params | Admin filters, pagination |
+| Form state   | React Hook Form + Zod        | Login, address, KYC upload, checkout                  |
+| URL state    | Search params                | Admin filters, pagination                             |
 
 **Rendering:** Server Components for static and listing pages (restaurant lists, admin tables' first page, marketing). Client Components only where interaction or browser APIs are needed (map, booking flow, live tracking). Suspense boundaries stream slow sections; error boundaries wrap each feature.
 
@@ -154,15 +154,15 @@ stateDiagram-v2
     NO_DRIVER_FOUND --> [*]
 ```
 
-| Transition | Allowed actor | Guard |
-| --- | --- | --- |
-| create → `REQUESTED` | Customer | Valid unexpired quote, no other active ride, payment method usable |
-| `SEARCHING_DRIVER` → `DRIVER_ASSIGNED` | Driver (offered) | Holds the offer lock, `ONLINE`, KYC approved |
-| → `DRIVER_ARRIVED` | Assigned driver | Last known position within 150 m of pickup |
-| → `TRIP_STARTED` | Assigned driver | Status is `DRIVER_ARRIVED` |
-| → `PAYMENT_PENDING` | Assigned driver | Status is `TRIP_STARTED`; final fare computed server-side from route and time |
-| → `TRIP_COMPLETED` | System | Payment captured (webhook) or cash confirmed by driver |
-| → `CANCELLED` | Customer, driver (re-dispatch), system (no-show), admin (any non-terminal) | Reason required; fee computed server-side |
+| Transition                             | Allowed actor                                                              | Guard                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| create → `REQUESTED`                   | Customer                                                                   | Valid unexpired quote, no other active ride, payment method usable            |
+| `SEARCHING_DRIVER` → `DRIVER_ASSIGNED` | Driver (offered)                                                           | Holds the offer lock, `ONLINE`, KYC approved                                  |
+| → `DRIVER_ARRIVED`                     | Assigned driver                                                            | Last known position within 150 m of pickup                                    |
+| → `TRIP_STARTED`                       | Assigned driver                                                            | Status is `DRIVER_ARRIVED`                                                    |
+| → `PAYMENT_PENDING`                    | Assigned driver                                                            | Status is `TRIP_STARTED`; final fare computed server-side from route and time |
+| → `TRIP_COMPLETED`                     | System                                                                     | Payment captured (webhook) or cash confirmed by driver                        |
+| → `CANCELLED`                          | Customer, driver (re-dispatch), system (no-show), admin (any non-terminal) | Reason required; fee computed server-side                                     |
 
 An invalid transition returns `409 INVALID_RIDE_TRANSITION`. The food order and delivery machines follow the same pattern; see [DATABASE.md](DATABASE.md#state-enums).
 
@@ -249,19 +249,19 @@ Adapters: `fake` (development and E2E tests, with controllable outcomes) and `st
 
 ## 8. Caching
 
-| Data | Cache key | TTL | Invalidation |
-| --- | --- | --- | --- |
-| System configuration (fare rules, feature flags) | `cfg:{name}` | 5 min | Explicit delete on admin change |
-| Driver live location | `driver:{id}:loc` | 30 s | Overwritten by each ping; expiry marks the driver stale |
-| Driver geo index | `drivers:{cityId}:{serviceType}` (GEO set) | none | `ZREM` on offline; sweeper removes members whose location key has expired |
-| Ride offer lock | `offer:{driverId}` | 15 s | Deleted on accept or decline |
-| Fare quote | not cached; the quote is a signed token | 5 min (in token) | Expiry |
-| Restaurant list per area (Phase 11) | `rest:list:{geohash5}:{page}` | 60 s | Delete on restaurant or menu change |
-| Restaurant menu (Phase 11) | `rest:menu:{id}:v{version}` | 10 min | Version bump on menu change |
-| Rate limits | `rl:{route}:{subject}` | window length | Expiry |
-| OTP challenge | `otp:{phoneHash}` | 5 min | Deleted on success or after 5 attempts |
-| Idempotency responses | `idem:{userId}:{key}` | 24 h | Expiry |
-| Token version (logout everywhere) | `tokver:{userId}` | 15 min | Updated on bump |
+| Data                                             | Cache key                                  | TTL              | Invalidation                                                              |
+| ------------------------------------------------ | ------------------------------------------ | ---------------- | ------------------------------------------------------------------------- |
+| System configuration (fare rules, feature flags) | `cfg:{name}`                               | 5 min            | Explicit delete on admin change                                           |
+| Driver live location                             | `driver:{id}:loc`                          | 30 s             | Overwritten by each ping; expiry marks the driver stale                   |
+| Driver geo index                                 | `drivers:{cityId}:{serviceType}` (GEO set) | none             | `ZREM` on offline; sweeper removes members whose location key has expired |
+| Ride offer lock                                  | `offer:{driverId}`                         | 15 s             | Deleted on accept or decline                                              |
+| Fare quote                                       | not cached; the quote is a signed token    | 5 min (in token) | Expiry                                                                    |
+| Restaurant list per area (Phase 11)              | `rest:list:{geohash5}:{page}`              | 60 s             | Delete on restaurant or menu change                                       |
+| Restaurant menu (Phase 11)                       | `rest:menu:{id}:v{version}`                | 10 min           | Version bump on menu change                                               |
+| Rate limits                                      | `rl:{route}:{subject}`                     | window length    | Expiry                                                                    |
+| OTP challenge                                    | `otp:{phoneHash}`                          | 5 min            | Deleted on success or after 5 attempts                                    |
+| Idempotency responses                            | `idem:{userId}:{key}`                      | 24 h             | Expiry                                                                    |
+| Token version (logout everywhere)                | `tokver:{userId}`                          | 15 min           | Updated on bump                                                           |
 
 Ride, order, wallet and payment rows are never served from cache.
 
@@ -269,14 +269,14 @@ Ride, order, wallet and payment rows are never served from cache.
 
 BullMQ queues, processed by `apps/worker`. Every job has a deterministic `jobId` where duplication would be harmful, so enqueueing twice is a no-op.
 
-| Queue | Jobs | Retry policy |
-| --- | --- | --- |
-| `notifications` | push, SMS, email | 5 attempts, exponential backoff |
-| `dispatch` | offer expiry, search timeout | none (time-critical; next step decides) |
-| `payments` | capture, refund, webhook processing, nightly reconciliation | 8 attempts, exponential backoff, alert on final failure |
-| `documents` | malware scan, image normalisation, expiry reminders | 3 attempts |
-| `analytics` | daily aggregates for dashboards | 3 attempts |
-| `cleanup` | expired sessions, stale geo members, old idempotency keys | 3 attempts |
+| Queue           | Jobs                                                        | Retry policy                                            |
+| --------------- | ----------------------------------------------------------- | ------------------------------------------------------- |
+| `notifications` | push, SMS, email                                            | 5 attempts, exponential backoff                         |
+| `dispatch`      | offer expiry, search timeout                                | none (time-critical; next step decides)                 |
+| `payments`      | capture, refund, webhook processing, nightly reconciliation | 8 attempts, exponential backoff, alert on final failure |
+| `documents`     | malware scan, image normalisation, expiry reminders         | 3 attempts                                              |
+| `analytics`     | daily aggregates for dashboards                             | 3 attempts                                              |
+| `cleanup`       | expired sessions, stale geo members, old idempotency keys   | 3 attempts                                              |
 
 ## 10. Deployment
 
@@ -306,26 +306,26 @@ Each audience already has its own app and can deploy independently, which delive
 
 ## 12. Development phases
 
-| # | Phase | Done when |
-| --- | --- | --- |
-| 1 | Architecture and requirements (this document set) | Approved |
-| 2 | Monorepo setup: Turborepo, pnpm, shared configs, Compose for Postgres and Redis, app skeletons, `/health` and `/ready`, CI (lint, typecheck, test, build) | `pnpm dev` runs all apps; CI green |
-| 3 | Design system: tokens, themes, components, a11y tests | Components pass keyboard and axe checks |
-| 4 | Authentication: OTP, passwords, sessions, RBAC, profile, addresses | Integration tests per role |
-| 5 | Customer app shell, PWA manifest | Responsive at all six widths |
-| 6 | Maps: `MapProvider`, MapLibre, search, routing | Route and ETA drawn through the adapter |
-| 7 | Ride booking: quotes, state machine, dispatch | Every transition unit-tested |
-| 8 | Driver app: onboarding, KYC, vehicles, offers, trip actions, earnings | Driver completes a seeded ride |
-| 9 | Real-time tracking | E2E: customer sees the driver move |
-| 10 | Payments, wallet, ratings | E2E: book, complete, pay, rate |
-| 11 | Food delivery, then parcels | E2E food order |
-| 12 | Admin | E2E: admin approves a driver |
-| 13 | Testing gaps and all critical-flow E2E tests | Critical flows green in CI |
-| 14 | Security hardening | ASVS L2 checklist reviewed |
-| 15 | Performance | Measured Web Vitals recorded |
-| 16 | Production Docker images | Images build and run in CI |
-| 17 | CI/CD with deploy stages | Staging deploys on merge |
-| 18 | Production deployment | Public HTTPS MVP; restore drill done |
+| #   | Phase                                                                                                                                                     | Done when                               |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 1   | Architecture and requirements (this document set)                                                                                                         | Approved                                |
+| 2   | Monorepo setup: Turborepo, pnpm, shared configs, Compose for Postgres and Redis, app skeletons, `/health` and `/ready`, CI (lint, typecheck, test, build) | `pnpm dev` runs all apps; CI green      |
+| 3   | Design system: tokens, themes, components, a11y tests                                                                                                     | Components pass keyboard and axe checks |
+| 4   | Authentication: OTP, passwords, sessions, RBAC, profile, addresses                                                                                        | Integration tests per role              |
+| 5   | Customer app shell, PWA manifest                                                                                                                          | Responsive at all six widths            |
+| 6   | Maps: `MapProvider`, MapLibre, search, routing                                                                                                            | Route and ETA drawn through the adapter |
+| 7   | Ride booking: quotes, state machine, dispatch                                                                                                             | Every transition unit-tested            |
+| 8   | Driver app: onboarding, KYC, vehicles, offers, trip actions, earnings                                                                                     | Driver completes a seeded ride          |
+| 9   | Real-time tracking                                                                                                                                        | E2E: customer sees the driver move      |
+| 10  | Payments, wallet, ratings                                                                                                                                 | E2E: book, complete, pay, rate          |
+| 11  | Food delivery, then parcels                                                                                                                               | E2E food order                          |
+| 12  | Admin                                                                                                                                                     | E2E: admin approves a driver            |
+| 13  | Testing gaps and all critical-flow E2E tests                                                                                                              | Critical flows green in CI              |
+| 14  | Security hardening                                                                                                                                        | ASVS L2 checklist reviewed              |
+| 15  | Performance                                                                                                                                               | Measured Web Vitals recorded            |
+| 16  | Production Docker images                                                                                                                                  | Images build and run in CI              |
+| 17  | CI/CD with deploy stages                                                                                                                                  | Staging deploys on merge                |
+| 18  | Production deployment                                                                                                                                     | Public HTTPS MVP; restore drill done    |
 
 CI starts in Phase 2 rather than Phase 17, so every later phase is gated by lint, typecheck and tests.
 
@@ -333,23 +333,23 @@ CI starts in Phase 2 rather than Phase 17, so every later phase is gated by lint
 
 Relative effort (S, M, L, XL; XL is roughly four times S). These are judgements, not measurements.
 
-| Module | Size | Risk |
-| --- | --- | --- |
-| Dispatch and matching | XL | High |
-| Real-time gateway and tracking | XL | High |
-| Payments and wallet | XL | High |
-| Food delivery | XL | Medium |
-| Ride booking and state machine | L | Medium |
-| Maps abstraction | L | Medium |
-| Authentication and RBAC | L | High |
-| Admin dashboard | L | Low |
-| Production deployment | L | Medium |
-| Design system | M | Low |
-| Driver onboarding and KYC | M | Medium |
-| Parcel delivery | M | Low |
-| Notifications | M | Low |
-| Test infrastructure and E2E | M | Medium |
-| Performance and PWA | M | Medium |
-| Monorepo and CI foundation | S | Low |
-| Promotions | S | Low |
-| Support tickets | S | Low |
+| Module                         | Size | Risk   |
+| ------------------------------ | ---- | ------ |
+| Dispatch and matching          | XL   | High   |
+| Real-time gateway and tracking | XL   | High   |
+| Payments and wallet            | XL   | High   |
+| Food delivery                  | XL   | Medium |
+| Ride booking and state machine | L    | Medium |
+| Maps abstraction               | L    | Medium |
+| Authentication and RBAC        | L    | High   |
+| Admin dashboard                | L    | Low    |
+| Production deployment          | L    | Medium |
+| Design system                  | M    | Low    |
+| Driver onboarding and KYC      | M    | Medium |
+| Parcel delivery                | M    | Low    |
+| Notifications                  | M    | Low    |
+| Test infrastructure and E2E    | M    | Medium |
+| Performance and PWA            | M    | Medium |
+| Monorepo and CI foundation     | S    | Low    |
+| Promotions                     | S    | Low    |
+| Support tickets                | S    | Low    |

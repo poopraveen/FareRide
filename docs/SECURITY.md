@@ -29,18 +29,18 @@ sequenceDiagram
     Note over A,D: Reuse of a revoked refresh token revokes the whole family
 ```
 
-| Element | Design |
-| --- | --- |
-| Customer and driver login | Phone + OTP. Email + password optional for customers |
-| Staff login | Email + password + TOTP, required for `SUPPORT`, `ADMIN`, `SUPER_ADMIN` |
-| Password hashing | Argon2id (memory 19 MiB, iterations 2, parallelism 1), minimum length 12 for staff |
-| OTP | 6 digits from a CSPRNG, stored as an HMAC, 5 min TTL, 5 attempts, 30 s resend cooldown, daily caps per phone and per IP, per-country SMS caps against SMS pumping |
-| Access token | JWT signed with EdDSA, 15 min, claims `sub`, `roles`, `sid`, `ver`. Asymmetric so the worker and gateway verify without the private key |
-| Refresh token | 256-bit opaque, stored hashed, 30 days, rotated on every use, family revoked on reuse |
-| Cookies | `HttpOnly; Secure; SameSite=Lax`, refresh cookie scoped to `/v1/auth`. API served on the same site as the web apps |
-| CSRF | SameSite cookies plus a double-submit token on cookie-authenticated mutations. Webhooks are exempt and verified by signature |
-| Logout everywhere | `user.token_version` bumped; tokens carrying an older `ver` are rejected |
-| WebSocket | Access token verified on handshake; socket closed at token expiry unless re-authenticated |
+| Element                   | Design                                                                                                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Customer and driver login | Phone + OTP. Email + password optional for customers                                                                                                              |
+| Staff login               | Email + password + TOTP, required for `SUPPORT`, `ADMIN`, `SUPER_ADMIN`                                                                                           |
+| Password hashing          | Argon2id (memory 19 MiB, iterations 2, parallelism 1), minimum length 12 for staff                                                                                |
+| OTP                       | 6 digits from a CSPRNG, stored as an HMAC, 5 min TTL, 5 attempts, 30 s resend cooldown, daily caps per phone and per IP, per-country SMS caps against SMS pumping |
+| Access token              | JWT signed with EdDSA, 15 min, claims `sub`, `roles`, `sid`, `ver`. Asymmetric so the worker and gateway verify without the private key                           |
+| Refresh token             | 256-bit opaque, stored hashed, 30 days, rotated on every use, family revoked on reuse                                                                             |
+| Cookies                   | `HttpOnly; Secure; SameSite=Lax`, refresh cookie scoped to `/v1/auth`. API served on the same site as the web apps                                                |
+| CSRF                      | SameSite cookies plus a double-submit token on cookie-authenticated mutations. Webhooks are exempt and verified by signature                                      |
+| Logout everywhere         | `user.token_version` bumped; tokens carrying an older `ver` are rejected                                                                                          |
+| WebSocket                 | Access token verified on handshake; socket closed at token expiry unless re-authenticated                                                                         |
 
 ## Authorization
 
@@ -53,22 +53,22 @@ sequenceDiagram
 
 ## Threats and controls
 
-| Threat | Control |
-| --- | --- |
-| Broken access control | Deny-by-default guards, ownership policies, role matrix tests |
-| Credential stuffing and OTP abuse | Rate limits, attempt caps, hashed OTPs, SMS caps, optional CAPTCHA after repeated failures |
-| Token theft | HttpOnly cookies, short access tokens, refresh rotation with reuse detection, session list with revoke |
-| Price or state tampering | Signed fare quotes (HMAC, 5 min), server-computed fares and fees, guarded state transitions |
-| Payment fraud | Server-side verification via webhooks or provider retrieve, idempotency keys, nightly reconciliation |
-| XSS | React escaping, no raw HTML without sanitising, strict nonce-based CSP, Trusted Types where supported |
-| Injection | Prisma parameterised queries; raw SQL only via tagged templates; lint rule against string-built SQL |
-| Malicious uploads | Presigned uploads to a private bucket, MIME and magic-byte checks, 10 MB cap, malware scan job, short-lived signed download URLs |
-| Location privacy | Exact positions visible only to the matched party during an active trip; the nearby-drivers endpoint returns jittered, ID-less points |
-| Secrets exposure | Server-only variables; CI fails if a secret-like value is in a `NEXT_PUBLIC_` variable; browser map keys are domain-restricted |
-| Transport | HTTPS only, HSTS, CORS allow-list of FareRide origins, WSS only |
-| Denial of service | Edge WAF and limits, per-route API limits, per-socket message limits, body size limits (1 MB) |
-| Insider misuse | Append-only audit log for admin actions, refunds, KYC decisions, role changes |
-| Supply chain | Lockfile, Renovate or Dependabot, `pnpm audit` and image scanning in CI, pinned base images |
+| Threat                            | Control                                                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Broken access control             | Deny-by-default guards, ownership policies, role matrix tests                                                                         |
+| Credential stuffing and OTP abuse | Rate limits, attempt caps, hashed OTPs, SMS caps, optional CAPTCHA after repeated failures                                            |
+| Token theft                       | HttpOnly cookies, short access tokens, refresh rotation with reuse detection, session list with revoke                                |
+| Price or state tampering          | Signed fare quotes (HMAC, 5 min), server-computed fares and fees, guarded state transitions                                           |
+| Payment fraud                     | Server-side verification via webhooks or provider retrieve, idempotency keys, nightly reconciliation                                  |
+| XSS                               | React escaping, no raw HTML without sanitising, strict nonce-based CSP, Trusted Types where supported                                 |
+| Injection                         | Prisma parameterised queries; raw SQL only via tagged templates; lint rule against string-built SQL                                   |
+| Malicious uploads                 | Presigned uploads to a private bucket, MIME and magic-byte checks, 10 MB cap, malware scan job, short-lived signed download URLs      |
+| Location privacy                  | Exact positions visible only to the matched party during an active trip; the nearby-drivers endpoint returns jittered, ID-less points |
+| Secrets exposure                  | Server-only variables; CI fails if a secret-like value is in a `NEXT_PUBLIC_` variable; browser map keys are domain-restricted        |
+| Transport                         | HTTPS only, HSTS, CORS allow-list of FareRide origins, WSS only                                                                       |
+| Denial of service                 | Edge WAF and limits, per-route API limits, per-socket message limits, body size limits (1 MB)                                         |
+| Insider misuse                    | Append-only audit log for admin actions, refunds, KYC decisions, role changes                                                         |
+| Supply chain                      | Lockfile, Renovate or Dependabot, `pnpm audit` and image scanning in CI, pinned base images                                           |
 
 ## Data protection
 

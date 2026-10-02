@@ -4,14 +4,14 @@ This document fixes what FareRide must do, for whom, and to what quality bar. Th
 
 ## 1. Users and roles
 
-| Role | Who | Primary app |
-| --- | --- | --- |
-| `CUSTOMER` | Books rides, orders food, sends parcels | customer-web |
-| `DRIVER` | Drives rides; also acts as delivery partner for food and parcels | driver-web |
-| `RESTAURANT` | Restaurant staff managing menus and incoming orders | restaurant-web (Phase 11) |
-| `SUPPORT` | Handles tickets, views rides and payments, cannot change configuration | admin-web |
-| `ADMIN` | Operations: KYC, users, refunds, promotions, reports | admin-web |
-| `SUPER_ADMIN` | Everything `ADMIN` can do, plus role management and system configuration | admin-web |
+| Role          | Who                                                                      | Primary app               |
+| ------------- | ------------------------------------------------------------------------ | ------------------------- |
+| `CUSTOMER`    | Books rides, orders food, sends parcels                                  | customer-web              |
+| `DRIVER`      | Drives rides; also acts as delivery partner for food and parcels         | driver-web                |
+| `RESTAURANT`  | Restaurant staff managing menus and incoming orders                      | restaurant-web (Phase 11) |
+| `SUPPORT`     | Handles tickets, views rides and payments, cannot change configuration   | admin-web                 |
+| `ADMIN`       | Operations: KYC, users, refunds, promotions, reports                     | admin-web                 |
+| `SUPER_ADMIN` | Everything `ADMIN` can do, plus role management and system configuration | admin-web                 |
 
 One person may hold several roles (for example, a driver who also books rides as a customer). Roles are enforced by the API; frontend route guards are a convenience only.
 
@@ -52,19 +52,19 @@ Food delivery, parcel delivery, promo codes, support tickets, restaurant managem
 
 ## 3. Non-functional requirements
 
-| Area | Requirement |
-| --- | --- |
-| Performance | LCP < 2.5 s, INP < 200 ms, CLS < 0.1 at p75 on mid-range mobile; only claimed once measured |
-| API latency | p95 < 300 ms for reads, < 500 ms for writes, excluding third-party calls |
-| Real-time | Driver position visible to the customer within 3 s of the driver's device reporting it |
-| Availability | Single region at MVP; target 99.5% monthly for the API |
-| Scalability | Stateless app tiers scale horizontally; design targets millions of users without a rewrite (see ARCHITECTURE.md section 10) |
-| Security | OWASP ASVS level 2 as the target; see SECURITY.md |
-| Accessibility | WCAG 2.2 AA |
-| Responsive | Tested at 360, 390, 768, 1024, 1440 and 1920 px |
-| Browsers | Last 2 versions of Chrome, Safari (iOS and macOS), Firefox, Edge |
-| Data | Point-in-time recovery for PostgreSQL; documented restore procedure |
-| Observability | Structured logs with request IDs, metrics, traces, error tracking, `/health` and `/ready` |
+| Area          | Requirement                                                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Performance   | LCP < 2.5 s, INP < 200 ms, CLS < 0.1 at p75 on mid-range mobile; only claimed once measured                                 |
+| API latency   | p95 < 300 ms for reads, < 500 ms for writes, excluding third-party calls                                                    |
+| Real-time     | Driver position visible to the customer within 3 s of the driver's device reporting it                                      |
+| Availability  | Single region at MVP; target 99.5% monthly for the API                                                                      |
+| Scalability   | Stateless app tiers scale horizontally; design targets millions of users without a rewrite (see ARCHITECTURE.md section 10) |
+| Security      | OWASP ASVS level 2 as the target; see SECURITY.md                                                                           |
+| Accessibility | WCAG 2.2 AA                                                                                                                 |
+| Responsive    | Tested at 360, 390, 768, 1024, 1440 and 1920 px                                                                             |
+| Browsers      | Last 2 versions of Chrome, Safari (iOS and macOS), Firefox, Edge                                                            |
+| Data          | Point-in-time recovery for PostgreSQL; documented restore procedure                                                         |
+| Observability | Structured logs with request IDs, metrics, traces, error tracking, `/health` and `/ready`                                   |
 
 ## 4. Definition of done (per feature)
 
@@ -86,13 +86,13 @@ These are in force until changed:
 
 ## 6. Decisions taken (approved 2026-10-02)
 
-| Decision | Choice |
-| --- | --- |
-| Product name | FareRide |
-| Repository | github.com/poopraveen/FareRide |
-| Maps | MapLibre GL for rendering + hosted routing/geocoding behind a `MapProvider` adapter |
-| Payments | `PaymentProvider` interface; Stripe adapter first, plus a fake provider for development and tests |
-| SMS / OTP | `SmsProvider` interface; Twilio Verify adapter, console provider in development |
-| Cloud | Google Cloud (Cloud Run, Cloud SQL, Memorystore); images stay provider-agnostic |
-| Auth | In-house implementation (ADR 0004) |
-| Launch country | Open; see assumption 1 |
+| Decision       | Choice                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------- |
+| Product name   | FareRide                                                                                          |
+| Repository     | github.com/poopraveen/FareRide                                                                    |
+| Maps           | MapLibre GL for rendering + hosted routing/geocoding behind a `MapProvider` adapter               |
+| Payments       | `PaymentProvider` interface; Stripe adapter first, plus a fake provider for development and tests |
+| SMS / OTP      | `SmsProvider` interface; Twilio Verify adapter, console provider in development                   |
+| Cloud          | Google Cloud (Cloud Run, Cloud SQL, Memorystore); images stay provider-agnostic                   |
+| Auth           | In-house implementation (ADR 0004)                                                                |
+| Launch country | Open; see assumption 1                                                                            |

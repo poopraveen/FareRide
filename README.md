@@ -6,14 +6,14 @@ FareRide is a multi-service mobility and delivery platform: ride-hailing first, 
 
 ## Documentation
 
-| Document | What it covers |
-| --- | --- |
+| Document                                     | What it covers                                                           |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Product scope, MVP, user roles, non-functional requirements, assumptions |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, modules, real-time, payments, deployment, phases |
-| [docs/DATABASE.md](docs/DATABASE.md) | Entities, ER diagram, constraints, indexes, cache keys |
-| [docs/API.md](docs/API.md) | REST conventions, error format, endpoint contract, socket events |
-| [docs/SECURITY.md](docs/SECURITY.md) | Threat model, authentication, authorization, controls |
-| [docs/adr/](docs/adr/) | Architecture Decision Records |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, modules, real-time, payments, deployment, phases          |
+| [docs/DATABASE.md](docs/DATABASE.md)         | Entities, ER diagram, constraints, indexes, cache keys                   |
+| [docs/API.md](docs/API.md)                   | REST conventions, error format, endpoint contract, socket events         |
+| [docs/SECURITY.md](docs/SECURITY.md)         | Threat model, authentication, authorization, controls                    |
+| [docs/adr/](docs/adr/)                       | Architecture Decision Records                                            |
 
 ## Planned stack
 
